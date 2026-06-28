@@ -142,7 +142,7 @@ class RecorderOverlay {
     const handle = document.createElement('div');
     handle.className = 'trp-tb-handle';
     handle.title = 'Drag to move';
-    handle.innerHTML = '<span class="trp-rec-dot"></span><span class="trp-tb-timer">00:00</span>';
+    handle.innerHTML = '<span class="trp-drag-grip">⋮⋮</span><span class="trp-rec-dot"></span><span class="trp-tb-timer">00:00</span>';
     bar.appendChild(handle);
     this.timerEl = handle.querySelector('.trp-tb-timer');
 
@@ -243,11 +243,14 @@ class RecorderOverlay {
     bar.style.display = 'none';
     document.documentElement.appendChild(bar);
 
-    this.makeDraggable(handle, bar);
+    this.makeDraggable(bar);
   }
 
-  makeDraggable(handle, bar) {
+  makeDraggable(bar) {
     let dragging = false, offsetX = 0, offsetY = 0;
+    const isInteractiveTarget = (target) => {
+      return !!(target && target.closest && target.closest('button, input, select, textarea, label'));
+    };
     const onMove = (e) => {
       if (!dragging) return;
       let x = e.clientX - offsetX;
@@ -257,20 +260,28 @@ class RecorderOverlay {
       bar.style.left = x + 'px';
       bar.style.top = y + 'px';
       bar.style.right = 'auto';
+      bar.style.transform = 'none';
+      e.preventDefault();
+      e.stopPropagation();
     };
     const onUp = () => {
       dragging = false;
+      bar.classList.remove('trp-dragging');
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerup', onUp, true);
     };
-    handle.addEventListener('pointerdown', (e) => {
+    bar.addEventListener('pointerdown', (e) => {
+      if (isInteractiveTarget(e.target)) return;
       dragging = true;
       const rect = bar.getBoundingClientRect();
       offsetX = e.clientX - rect.left;
       offsetY = e.clientY - rect.top;
+      bar.classList.add('trp-dragging');
       document.addEventListener('pointermove', onMove, true);
       document.addEventListener('pointerup', onUp, true);
       e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     });
   }
 
@@ -343,16 +354,35 @@ class RecorderOverlay {
   }
 
   async sendControl(action) {
-    try {
-      const response = await chrome.runtime.sendMessage({ action });
-      if (response && response.success === false) {
-        this.showToolbarError(response.error || 'Recording control failed');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (response) => {
+        if (settled) return;
+        settled = true;
+        if (!response || response.success === false) {
+          this.showToolbarError((response && response.error) || 'Recording control failed');
+        }
+        resolve(response || { success: false, error: 'No response from recorder' });
+      };
+
+      const timeout = setTimeout(() => {
+        finish({ success: false, error: 'Recorder did not respond' });
+      }, 2500);
+
+      try {
+        chrome.runtime.sendMessage({ action }, (response) => {
+          clearTimeout(timeout);
+          if (chrome.runtime.lastError) {
+            finish({ success: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          finish(response || { success: true });
+        });
+      } catch (e) {
+        clearTimeout(timeout);
+        finish({ success: false, error: e.message || String(e) });
       }
-      return response || { success: true };
-    } catch (e) {
-      this.showToolbarError(e.message || 'Recording control failed');
-      return { success: false, error: e.message || String(e) };
-    }
+    });
   }
 
   showToolbarError(message) {

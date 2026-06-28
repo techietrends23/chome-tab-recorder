@@ -1,5 +1,5 @@
 (function () {
-  const CONTENT_SCRIPT_VERSION = '1.2.1-toolbar-reveal';
+  const CONTENT_SCRIPT_VERSION = '1.2.2-toolbar-controls-drag';
   if (window.__trpContentScriptVersion === CONTENT_SCRIPT_VERSION) {
     if (window.__trpSyncOverlayFromBackground) window.__trpSyncOverlayFromBackground();
     return;

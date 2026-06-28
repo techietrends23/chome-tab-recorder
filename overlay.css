@@ -127,6 +127,11 @@
   color: #e8eaed;
   pointer-events: auto;
   user-select: none;
+  cursor: grab;
+}
+
+#trp-toolbar.trp-dragging {
+  cursor: grabbing;
 }
 
 #trp-toolbar.trp-auto-hide {
@@ -165,6 +170,13 @@
 }
 #trp-toolbar .trp-tb-handle:active { cursor: grabbing; }
 
+#trp-toolbar .trp-drag-grip {
+  color: #9aa0a6;
+  font-size: 14px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
 #trp-toolbar .trp-rec-dot {
   width: 8px;
   height: 8px;
@@ -196,6 +208,11 @@
   cursor: pointer;
   padding: 0;
   transition: border-color 0.15s, background 0.15s;
+}
+
+#trp-toolbar input,
+#trp-toolbar button {
+  cursor: pointer;
 }
 #trp-toolbar .trp-tb-btn:hover { background: #0f3460; }
 #trp-toolbar .trp-tb-btn.active { border-color: #4285f4; background: #0f3460; }
