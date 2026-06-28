@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Recorder Pro</title>
+  <meta name="description" content="Record Chrome tabs with a floating annotation toolbar, instant download links, and a fast setup guide.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Chrome tab recorder for demos, walkthroughs, and product explainers</div>
+        <h1>Record the tab. Draw on top. Ship the clip.</h1>
+        <p class="hero-text">
+          Tab Recorder Pro gives you a lightweight floating annotation toolbar with pen, highlighter, text,
+          click spotlighting, pause, and stop controls right on the page you are recording.
+        </p>
+        <div class="hero-actions">
+          <a class="cta primary" href="/downloads/tab-recorder-pro.crx">Download CRX</a>
+          <a class="cta secondary" href="/downloads/tab-recorder-pro.zip">Download ZIP</a>
+        </div>
+        <p class="hero-note">
+          Chrome often blocks direct CRX installs outside the Chrome Web Store. If that happens, use the ZIP package
+          with Developer Mode and Load unpacked.
+        </p>
+      </div>
+
+      <div class="hero-demo" aria-hidden="true">
+        <div class="demo-window">
+          <div class="demo-browser-bar">
+            <span class="demo-dot red"></span>
+            <span class="demo-dot amber"></span>
+            <span class="demo-dot green"></span>
+            <div class="demo-address">https://tab-recorder-pro.app/demo</div>
+          </div>
+          <div class="demo-canvas">
+            <div class="demo-toolbar">
+              <span class="demo-rec"></span>
+              <span class="demo-time">02:11</span>
+              <span class="demo-tool active">✎</span>
+              <span class="demo-tool">🖍</span>
+              <span class="demo-tool">T</span>
+              <span class="demo-tool">⌖</span>
+              <span class="demo-tool pause">⏸</span>
+              <span class="demo-tool stop">⏹</span>
+            </div>
+            <div class="demo-badge">Recording</div>
+            <div class="demo-card">
+              <h2>Explain workflows visually</h2>
+              <p>Annotate the page while your recording keeps going in the background.</p>
+            </div>
+            <div class="demo-highlight"></div>
+            <div class="demo-scribble scribble-one"></div>
+            <div class="demo-scribble scribble-two"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-grid">
+      <article class="feature-card">
+        <h2>What you get</h2>
+        <p>Floating toolbar, live timer, color picker, stroke control, page text notes, click highlighting, pause and stop controls, and downloadable recordings.</p>
+      </article>
+      <article class="feature-card">
+        <h2>Best for</h2>
+        <p>Bug reports, onboarding clips, product tutorials, async walkthroughs, and quick demos where you need to point at the UI while talking through it.</p>
+      </article>
+      <article class="feature-card">
+        <h2>Export options</h2>
+        <p>WebM is the most reliable default. MP4 is available when Chrome supports native MP4 recording. GIF works best for short clips.</p>
+      </article>
+    </section>
+
+    <section class="guide">
+      <div class="section-heading">
+        <span class="eyebrow">Quick start</span>
+        <h2>Install in a couple of minutes</h2>
+      </div>
+
+      <div class="steps">
+        <article class="step-card">
+          <span class="step-number">1</span>
+          <h3>Pick your install path</h3>
+          <p>Try the CRX first. If Chrome rejects it, use the ZIP package instead and unpack it on your machine.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-number">2</span>
+          <h3>Open Chrome extensions</h3>
+          <p>Go to <code>chrome://extensions</code> and turn on Developer Mode in the top right corner.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-number">3</span>
+          <h3>Install the extension</h3>
+          <p>For ZIP: unzip it, click <code>Load unpacked</code>, and select the extracted folder. For CRX: drag it into the extensions page if your Chrome build allows it.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-number">4</span>
+          <h3>Start recording</h3>
+          <p>Open the extension, choose export format and quality, click Start, then use the in-page toolbar to annotate while you record.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="workflow">
+      <div class="section-heading">
+        <span class="eyebrow">How it works</span>
+        <h2>A clean recording flow for real work</h2>
+      </div>
+
+      <div class="workflow-grid">
+        <article class="workflow-card">
+          <h3>1. Launch the recorder</h3>
+          <p>Click the extension icon, confirm format and quality, then start recording the active Chrome tab.</p>
+        </article>
+        <article class="workflow-card">
+          <h3>2. Annotate on the page</h3>
+          <p>Use the floating toolbar for pen, highlighter, text, eraser, click spotlighting, and theme switching.</p>
+        </article>
+        <article class="workflow-card">
+          <h3>3. Pause or stop anytime</h3>
+          <p>Use the popup or the page toolbar controls. The recording engine runs offscreen so the popup can be closed safely.</p>
+        </article>
+        <article class="workflow-card">
+          <h3>4. Download instantly</h3>
+          <p>Your finished recording is saved to Chrome Downloads, with optional subfolder organization from settings.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="faq">
+      <div class="section-heading">
+        <span class="eyebrow">Need-to-know</span>
+        <h2>Install notes for your users</h2>
+      </div>
+
+      <div class="faq-list">
+        <article class="faq-item">
+          <h3>Why provide both CRX and ZIP?</h3>
+          <p>CRX is convenient for compatible Chromium environments. ZIP is the reliable fallback for Chrome Developer Mode installs.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Can users install this like a normal store extension?</h3>
+          <p>Not yet. For the smoothest one-click install on Chrome, publish the extension to the Chrome Web Store later. This page gives users the fastest sideload path right now.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Where do recordings go?</h3>
+          <p>Files are downloaded through Chrome into the browser Downloads folder, optionally inside a subfolder you configure in settings.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="footer-cta">
+      <div>
+        <span class="eyebrow">Ready to try it?</span>
+        <h2>Install Tab Recorder Pro and start capturing annotated walkthroughs today.</h2>
+      </div>
+      <div class="hero-actions">
+        <a class="cta primary" href="/downloads/tab-recorder-pro.crx">Get the CRX</a>
+        <a class="cta secondary" href="/downloads/tab-recorder-pro.zip">Use the ZIP fallback</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

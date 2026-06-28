@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 const fields = [
   'format', 'quality', 'codec', 'captureTabAudio', 'monitorTabAudio',
   'downloadFolder', 'askSaveAs', 'defaultColor', 'defaultStrokeWidth',
-  'hideToolbarInRecording',
+  'hideToolbarInRecording', 'toolbarTheme',
 ];
 
 function normalizeFormat(format) {
@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('strokeWidthValue').textContent = saved.defaultStrokeWidth;
   }
   $('hideToolbarInRecording').checked = saved.hideToolbarInRecording !== false;
+  $('toolbarTheme').value = saved.toolbarTheme === 'light' ? 'light' : 'dark';
 
   $('defaultStrokeWidth').addEventListener('input', (e) => {
     $('strokeWidthValue').textContent = e.target.value;
@@ -69,6 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultColor: $('defaultColor').value,
       defaultStrokeWidth: parseInt($('defaultStrokeWidth').value),
       hideToolbarInRecording: $('hideToolbarInRecording').checked,
+      toolbarTheme: $('toolbarTheme').value === 'light' ? 'light' : 'dark',
     };
 
     await chrome.storage.sync.set(data);

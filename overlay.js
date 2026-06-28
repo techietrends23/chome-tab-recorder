@@ -8,6 +8,9 @@ class RecorderOverlay {
     this.clickHighlightEnabled = false;
     this.isPaused = false;
     this.hideToolbarInRecording = true;
+    this.theme = 'dark';
+    this.controlActionInFlight = false;
+    this.controlButtons = [];
 
     this.container = null;
     this.canvas = null;
@@ -17,6 +20,8 @@ class RecorderOverlay {
     this.toolbar = null;
     this.toolButtons = {};
     this.pauseBtn = null;
+    this.stopBtn = null;
+    this.themeBtn = null;
 
     this.isDrawing = false;
     this.isErasing = false;
@@ -87,14 +92,27 @@ class RecorderOverlay {
 
   loadSettings() {
     try {
-      chrome.storage.sync.get(['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth'], (s) => {
-        const color = s.color || s.defaultColor;
-        const width = s.strokeWidth || s.defaultStrokeWidth;
-        if (color) this.setColor(color);
-        if (width) this.setStrokeWidth(width);
-        if (this.colorInput && color) this.colorInput.value = color;
-        if (this.strokeInput && width) { this.strokeInput.value = width; this.strokeValue.textContent = width; }
-      });
+      chrome.storage.sync.get(
+        ['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth', 'toolbarTheme', 'clickHighlightEnabled'],
+        (s) => {
+          const color = s.color || s.defaultColor;
+          const width = s.strokeWidth || s.defaultStrokeWidth;
+          if (color) this.setColor(color);
+          if (width) this.setStrokeWidth(width);
+          if (this.colorInput && color) this.colorInput.value = color;
+          if (this.strokeInput && width) {
+            this.strokeInput.value = width;
+            this.strokeValue.textContent = width;
+          }
+          this.applyTheme(s.toolbarTheme || 'dark');
+          if (typeof s.clickHighlightEnabled === 'boolean') {
+            this.toggleClickHighlight(s.clickHighlightEnabled);
+            if (this.toolButtons.__highlight) {
+              this.toolButtons.__highlight.classList.toggle('active', s.clickHighlightEnabled);
+            }
+          }
+        }
+      );
     } catch (e) { /* storage unavailable */ }
   }
 
@@ -133,6 +151,9 @@ class RecorderOverlay {
     this.container = this.canvas = this.ctx = this.highlightLayer = this.badge = this.toolbar = null;
     this.toolButtons = {};
     this.pauseBtn = null;
+    this.stopBtn = null;
+    this.themeBtn = null;
+    this.controlButtons = [];
   }
 
   buildToolbar() {
@@ -222,6 +243,15 @@ class RecorderOverlay {
     actionGroup.appendChild(hlBtn);
     bar.appendChild(actionGroup);
 
+    const viewGroup = document.createElement('div');
+    viewGroup.className = 'trp-tb-group';
+    this.themeBtn = document.createElement('button');
+    this.themeBtn.className = 'trp-tb-btn';
+    this.themeBtn.title = 'Toggle toolbar theme';
+    this.themeBtn.addEventListener('click', () => this.toggleTheme());
+    viewGroup.appendChild(this.themeBtn);
+    bar.appendChild(viewGroup);
+
     // recording controls
     const recGroup = document.createElement('div');
     recGroup.className = 'trp-tb-group';
@@ -235,13 +265,16 @@ class RecorderOverlay {
     stopBtn.title = 'Stop recording';
     stopBtn.textContent = '⏹';
     stopBtn.addEventListener('click', (e) => this.onStop(e));
+    this.stopBtn = stopBtn;
     recGroup.appendChild(this.pauseBtn);
     recGroup.appendChild(stopBtn);
     bar.appendChild(recGroup);
+    this.controlButtons = [this.pauseBtn, this.stopBtn];
 
     this.toolbar = bar;
     bar.style.display = 'none';
     document.documentElement.appendChild(bar);
+    this.applyTheme(this.theme);
 
     this.makeDraggable(bar);
   }
@@ -335,22 +368,29 @@ class RecorderOverlay {
 
   async onPauseToggle(e) {
     this.stopToolbarEvent(e);
+    if (this.controlActionInFlight) return;
     const nextPaused = !this.isPaused;
     const action = nextPaused ? 'pause-recording' : 'resume-recording';
+    this.setControlActionInFlight(true);
     const result = await this.sendControl(action);
     if (result && result.success) {
       this.setRecordingState(nextPaused, this.startedAt);
     }
+    this.setControlActionInFlight(false);
   }
 
   async onStop(e) {
     this.stopToolbarEvent(e);
+    if (this.controlActionInFlight) return;
+    this.setControlActionInFlight(true);
     const result = await this.sendControl('stop-recording');
     if (result && result.success) {
       if (this.pauseBtn) this.pauseBtn.disabled = true;
+      if (this.stopBtn) this.stopBtn.disabled = true;
       this.showRecordingBadge(false);
       this.stopTimer();
     }
+    this.setControlActionInFlight(false);
   }
 
   async sendControl(action) {
@@ -440,6 +480,9 @@ class RecorderOverlay {
     if (Object.prototype.hasOwnProperty.call(options, 'hideToolbarInRecording')) {
       this.hideToolbarInRecording = options.hideToolbarInRecording !== false;
     }
+    if (Object.prototype.hasOwnProperty.call(options, 'toolbarTheme')) {
+      this.applyTheme(options.toolbarTheme || 'dark');
+    }
     if (startedAt) this.startedAt = startedAt;
     this.updateToolbarVisibilityMode();
     this.showRecordingBadge(this.isPaused);
@@ -451,6 +494,19 @@ class RecorderOverlay {
     if (this.pauseBtn) {
       this.pauseBtn.textContent = this.isPaused ? '▶' : '⏸';
       this.pauseBtn.title = this.isPaused ? 'Resume' : 'Pause';
+    }
+    if (this.toolbar) {
+      this.toolbar.classList.toggle('trp-is-paused', this.isPaused);
+    }
+  }
+
+  setControlActionInFlight(inFlight) {
+    this.controlActionInFlight = inFlight;
+    this.controlButtons.forEach((button) => {
+      if (button) button.disabled = inFlight;
+    });
+    if (this.toolbar) {
+      this.toolbar.classList.toggle('trp-control-pending', inFlight);
     }
   }
 
@@ -691,6 +747,20 @@ class RecorderOverlay {
   setColor(color) { this.color = color; if (this.colorInput) this.colorInput.value = color; }
   setStrokeWidth(width) { this.strokeWidth = width; }
   setTextSize(size) { this.textSize = size; }
+  applyTheme(theme) {
+    this.theme = theme === 'light' ? 'light' : 'dark';
+    if (this.toolbar) this.toolbar.dataset.theme = this.theme;
+    if (this.themeBtn) {
+      this.themeBtn.textContent = this.theme === 'light' ? '☾' : '☀';
+      this.themeBtn.title = this.theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+    }
+  }
+
+  toggleTheme() {
+    const nextTheme = this.theme === 'light' ? 'dark' : 'light';
+    this.applyTheme(nextTheme);
+    try { chrome.storage.sync.set({ toolbarTheme: nextTheme }); } catch (e) {}
+  }
 
   toggleClickHighlight(enabled) {
     this.clickHighlightEnabled = enabled;

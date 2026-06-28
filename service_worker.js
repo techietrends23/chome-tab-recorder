@@ -15,8 +15,46 @@ let state = {
   error: null,
 };
 
+const SESSION_STATE_KEY = 'recordingRuntimeState';
 let offscreenCreated = false;
 const notificationDownloads = new Map();
+let stateHydrationPromise = null;
+
+function getStateSnapshot() {
+  return { ...state };
+}
+
+async function persistState() {
+  try {
+    await chrome.storage.session.set({ [SESSION_STATE_KEY]: getStateSnapshot() });
+  } catch (e) {
+    // Non-fatal; runtime state remains available until the worker is suspended.
+  }
+}
+
+async function hydrateState() {
+  if (stateHydrationPromise) {
+    await stateHydrationPromise;
+    return;
+  }
+
+  stateHydrationPromise = (async () => {
+    try {
+      const saved = await chrome.storage.session.get(SESSION_STATE_KEY);
+      if (saved && saved[SESSION_STATE_KEY]) {
+        state = { ...state, ...saved[SESSION_STATE_KEY] };
+      }
+    } catch (e) {
+      // Ignore storage hydration failures and continue with defaults.
+    }
+  })();
+
+  try {
+    await stateHydrationPromise;
+  } finally {
+    stateHydrationPromise = null;
+  }
+}
 
 // ---------- Offscreen document lifecycle ----------
 
@@ -139,6 +177,7 @@ async function revealToolbar(tabId) {
 }
 
 async function showToolbarForRecording() {
+  await hydrateState();
   if (!state.isRecording || !state.tabId) {
     return { success: false, error: 'Not recording' };
   }
@@ -162,13 +201,14 @@ function broadcastPopup() {
   chrome.runtime.sendMessage({
     target: 'popup',
     action: 'recording-state-update',
-    state: { ...state },
+    state: getStateSnapshot(),
   }).catch(() => {});
 }
 
 // ---------- Recording control ----------
 
 async function startRecording(msg) {
+  await hydrateState();
   if (state.isRecording) return { success: false, error: 'Already recording' };
 
   await ensureOffscreen();
@@ -202,30 +242,41 @@ async function startRecording(msg) {
   state.hideToolbarInRecording = msg.hideToolbarInRecording !== false;
   state.startedAt = Date.now();
   state.error = null;
+  await persistState();
 
   await ensureContentScript(msg.tabId);
   const overlayVisible = await showOverlayWithRetries(msg.tabId);
   if (!overlayVisible) {
     state.error = 'Recording started, but the annotation toolbar is unavailable on this browser page. Try a regular website tab such as https://www.google.com.';
   }
+  await persistState();
   broadcastPopup();
   return { success: true };
 }
 
 async function controlRecording(kind) {
+  await hydrateState();
   if (!state.isRecording) return { success: false, error: 'Not recording' };
+  if (kind === 'pause' && state.isPaused) {
+    return { success: true };
+  }
+  if (kind === 'resume' && !state.isPaused) {
+    return { success: true };
+  }
   const resp = await sendToOffscreen({ action: kind });
   if (!resp || !resp.success) {
     return { success: false, error: (resp && resp.error) || `Failed to ${kind} recording` };
   }
   state.isPaused = (kind === 'pause');
   state.error = null;
+  await persistState();
   await notifyContent();
   broadcastPopup();
   return { success: true };
 }
 
 async function stopRecording() {
+  await hydrateState();
   if (!state.isRecording) return { success: false, error: 'Not recording' };
   const resp = await sendToOffscreen({ action: 'stop' });
   if (!resp || !resp.success) {
@@ -236,6 +287,7 @@ async function stopRecording() {
 }
 
 async function handleToolbarControl(msg, sender) {
+  await hydrateState();
   if (!state.isRecording) return { success: false, error: 'Not recording' };
   if (sender && sender.tab && state.tabId && sender.tab.id !== state.tabId) {
     return { success: false, error: 'Toolbar is not attached to the active recording tab' };
@@ -254,6 +306,7 @@ async function handleToolbarControl(msg, sender) {
 }
 
 async function onRecordingComplete(msg) {
+  await hydrateState();
   const finishedTabId = state.tabId;
   state.isRecording = false;
   state.isPaused = false;
@@ -272,6 +325,7 @@ async function onRecordingComplete(msg) {
     })).catch(() => {});
   }
   state.tabId = null;
+  await persistState();
 
   const settings = await chrome.storage.sync.get(['downloadFolder', 'askSaveAs']);
   const folder = (settings.downloadFolder || '').trim().replace(/^[\/\\]+|[\/\\]+$/g, '');
@@ -312,6 +366,7 @@ async function onRecordingComplete(msg) {
 }
 
 async function onRecordingError(error) {
+  await hydrateState();
   const failedTabId = state.tabId;
   state.error = error;
   state.isRecording = false;
@@ -330,6 +385,7 @@ async function onRecordingError(error) {
     })).catch(() => {});
   }
   state.tabId = null;
+  await persistState();
   chrome.runtime.sendMessage({ target: 'popup', action: 'recording-error', error }).catch(() => {});
   broadcastPopup();
 }
@@ -362,6 +418,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   (async () => {
     try {
+      await hydrateState();
       let r = { success: true };
       switch (msg.action) {
         case 'start-recording':  r = await startRecording(msg); break;
@@ -389,6 +446,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // Re-attach the toolbar after the recorded tab navigates/reloads.
 chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  await hydrateState();
   if (tabId === state.tabId && state.isRecording && info.status === 'complete') {
     await ensureContentScript(tabId);
     await showOverlayWithRetries(tabId);
@@ -397,9 +455,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, info) => {
 
 // If the recorded tab is closed, stop recording.
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === state.tabId && state.isRecording) {
-    stopRecording().catch(() => {});
-  }
+  hydrateState().then(() => {
+    if (tabId === state.tabId && state.isRecording) {
+      stopRecording().catch(() => {});
+    }
+  });
 });
 
 if (chrome.notifications) {
@@ -415,3 +475,5 @@ if (chrome.notifications) {
     notificationDownloads.delete(notificationId);
   });
 }
+
+hydrateState();
