@@ -12,6 +12,15 @@
 </head>
 <body>
   <main class="page-shell">
+    <div class="topbar">
+      <a class="repo-link" href="https://github.com/techietrends23/chome-tab-recorder" target="_blank" rel="noreferrer">
+        Open source on GitHub
+      </a>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme">
+        <span class="theme-toggle-label">Light mode</span>
+      </button>
+    </div>
+
     <section class="hero">
       <div class="hero-copy">
         <div class="eyebrow">Chrome tab recorder for demos, walkthroughs, and product explainers</div>
@@ -20,6 +29,13 @@
           Tab Recorder Pro gives you a lightweight floating annotation toolbar with pen, highlighter, text,
           click spotlighting, pause, and stop controls right on the page you are recording.
         </p>
+        <div class="open-source-banner">
+          <strong>Completely free and open source.</strong>
+          <span>
+            Browse the code, star the repo, and contribute improvements on
+            <a href="https://github.com/techietrends23/chome-tab-recorder" target="_blank" rel="noreferrer">GitHub</a>.
+          </span>
+        </div>
         <div class="hero-actions">
           <a class="cta primary" href="/downloads/tab-recorder-pro.crx">Download CRX</a>
           <a class="cta secondary" href="/downloads/tab-recorder-pro.zip">Download ZIP</a>
@@ -149,6 +165,10 @@
           <p>Not yet. For the smoothest one-click install on Chrome, publish the extension to the Chrome Web Store later. This page gives users the fastest sideload path right now.</p>
         </article>
         <article class="faq-item">
+          <h3>Is it really free?</h3>
+          <p>Yes. Tab Recorder Pro is completely free and open source. Anyone can inspect the code, suggest fixes, and contribute features through the GitHub repository.</p>
+        </article>
+        <article class="faq-item">
           <h3>Where do recordings go?</h3>
           <p>Files are downloaded through Chrome into the browser Downloads folder, optionally inside a subfolder you configure in settings.</p>
         </article>
@@ -159,6 +179,11 @@
       <div>
         <span class="eyebrow">Ready to try it?</span>
         <h2>Install Tab Recorder Pro and start capturing annotated walkthroughs today.</h2>
+        <p class="footer-note">
+          Like the project? Visit
+          <a href="https://github.com/techietrends23/chome-tab-recorder" target="_blank" rel="noreferrer">github.com/techietrends23/chome-tab-recorder</a>
+          to star it, report issues, or contribute.
+        </p>
       </div>
       <div class="hero-actions">
         <a class="cta primary" href="/downloads/tab-recorder-pro.crx">Get the CRX</a>
@@ -166,5 +191,6 @@
       </div>
     </section>
   </main>
+  <script src="site.js"></script>
 </body>
 </html>
