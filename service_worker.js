@@ -235,6 +235,24 @@ async function stopRecording() {
   return { success: true };
 }
 
+async function handleToolbarControl(msg, sender) {
+  if (!state.isRecording) return { success: false, error: 'Not recording' };
+  if (sender && sender.tab && state.tabId && sender.tab.id !== state.tabId) {
+    return { success: false, error: 'Toolbar is not attached to the active recording tab' };
+  }
+
+  switch (msg.control) {
+    case 'pause-recording':
+      return controlRecording('pause');
+    case 'resume-recording':
+      return controlRecording('resume');
+    case 'stop-recording':
+      return stopRecording();
+    default:
+      return { success: false, error: 'Unknown toolbar control: ' + msg.control };
+  }
+}
+
 async function onRecordingComplete(msg) {
   const finishedTabId = state.tabId;
   state.isRecording = false;
@@ -350,6 +368,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'stop-recording':   r = await stopRecording(); break;
         case 'pause-recording':  r = await controlRecording('pause'); break;
         case 'resume-recording': r = await controlRecording('resume'); break;
+        case 'toolbar-control':  r = await handleToolbarControl(msg, sender); break;
         case 'show-toolbar':     r = await showToolbarForRecording(); break;
         case 'get-state':        r = { state: { ...state } }; break;
 

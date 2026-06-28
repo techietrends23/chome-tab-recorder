@@ -1,5 +1,5 @@
 (function () {
-  const CONTENT_SCRIPT_VERSION = '1.2.2-toolbar-controls-drag';
+  const CONTENT_SCRIPT_VERSION = '1.2.3-toolbar-control-bridge';
   if (window.__trpContentScriptVersion === CONTENT_SCRIPT_VERSION) {
     if (window.__trpSyncOverlayFromBackground) window.__trpSyncOverlayFromBackground();
     return;
@@ -73,6 +73,25 @@
     }
     if (sendResponse) sendResponse({ success: true });
     return false;
+  });
+
+  window.addEventListener('trp-toolbar-control', async (event) => {
+    const detail = event.detail || {};
+    if (!detail.id || !detail.action) return;
+
+    let response;
+    try {
+      response = await chrome.runtime.sendMessage({
+        action: 'toolbar-control',
+        control: detail.action,
+      });
+    } catch (e) {
+      response = { success: false, error: e.message || String(e) };
+    }
+
+    window.dispatchEvent(new CustomEvent('trp-toolbar-control-response', {
+      detail: { id: detail.id, response },
+    }));
   });
 
   window.addEventListener('unload', () => {

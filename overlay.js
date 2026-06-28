@@ -354,6 +354,15 @@ class RecorderOverlay {
   }
 
   async sendControl(action) {
+    const bridgeResponse = await this.sendControlViaBridge(action);
+    if (bridgeResponse && bridgeResponse.success !== false) return bridgeResponse;
+
+    // Fall back to direct extension messaging for older injected content scripts.
+    if (bridgeResponse && bridgeResponse.error !== 'Toolbar bridge did not respond') {
+      this.showToolbarError(bridgeResponse.error || 'Recording control failed');
+      return bridgeResponse;
+    }
+
     return new Promise((resolve) => {
       let settled = false;
       const finish = (response) => {
@@ -382,6 +391,36 @@ class RecorderOverlay {
         clearTimeout(timeout);
         finish({ success: false, error: e.message || String(e) });
       }
+    });
+  }
+
+  sendControlViaBridge(action) {
+    return new Promise((resolve) => {
+      const id = `trp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      let settled = false;
+
+      const finish = (response) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('trp-toolbar-control-response', onResponse);
+        clearTimeout(timeout);
+        resolve(response || { success: false, error: 'Toolbar bridge did not respond' });
+      };
+
+      const onResponse = (event) => {
+        const detail = event.detail || {};
+        if (detail.id !== id) return;
+        finish(detail.response);
+      };
+
+      const timeout = setTimeout(() => {
+        finish({ success: false, error: 'Toolbar bridge did not respond' });
+      }, 1200);
+
+      window.addEventListener('trp-toolbar-control-response', onResponse);
+      window.dispatchEvent(new CustomEvent('trp-toolbar-control', {
+        detail: { id, action },
+      }));
     });
   }
 
