@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Recorder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1><span class="status-dot idle" id="statusDot"></span>Tab Recorder</h1>
+      <button id="settingsBtn" class="icon-btn" title="Settings">&#9881;</button>
+    </header>
+
+    <div class="status-bar" id="statusBar">
+      <span id="statusText">Ready to record</span>
+      <span class="timer" id="timer">00:00</span>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="btn btn-start">&#9654; Start</button>
+      <button id="pauseBtn" class="btn btn-pause" disabled>&#10074;&#10074; Pause</button>
+      <button id="resumeBtn" class="btn btn-resume" style="display:none">&#9654; Resume</button>
+      <button id="stopBtn" class="btn btn-stop" disabled>&#9632; Stop</button>
+    </div>
+
+    <div id="toolbarInfo" class="toolbar-info" style="display:none">
+      <span>&#9432; Annotation toolbar should appear on the page.</span>
+      <button id="showToolbarBtn" class="link-btn" type="button">Show toolbar</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Export format</div>
+      <div class="export-row">
+        <select id="formatSelect" class="select">
+          <option value="webm">WebM</option>
+          <option value="mp4">MP4</option>
+          <option value="gif">GIF (short clips)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Quality</div>
+      <div class="export-row">
+        <select id="qualitySelect" class="select">
+          <option value="high">High (1080p)</option>
+          <option value="medium">Medium (720p)</option>
+          <option value="low">Low (480p)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="error-bar" id="errorBar" style="display:none"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

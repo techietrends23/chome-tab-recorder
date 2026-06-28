@@ -1,0 +1,246 @@
+#trp-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+#trp-overlay.active-tool {
+  pointer-events: auto;
+}
+
+#trp-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#trp-canvas.active-pointer {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+#trp-canvas.eraser-mode {
+  cursor: grab;
+}
+
+#trp-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trp-highlight {
+  position: fixed;
+  border-style: solid;
+  pointer-events: none;
+  box-sizing: border-box;
+  z-index: 2147483646;
+  transition: opacity 0.2s ease;
+}
+
+.trp-text-label {
+  position: fixed;
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.2;
+}
+
+.trp-text-input {
+  position: fixed;
+  background: transparent;
+  border: none;
+  border-bottom-width: 2px;
+  border-bottom-style: solid;
+  outline: none;
+  padding: 2px;
+  min-width: 50px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#trp-recording-badge {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 2147483647;
+  background: rgba(234, 67, 53, 0.9);
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#trp-recording-badge .dot {
+  width: 6px;
+  height: 6px;
+  background: #fff;
+  border-radius: 50%;
+  animation: trp-pulse 1.5s infinite;
+}
+
+#trp-recording-badge.paused .dot {
+  animation: none;
+  background: #fbbc04;
+}
+
+@keyframes trp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ---------- In-page floating toolbar ---------- */
+
+#trp-toolbar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  transform: none;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #1a1a2e;
+  border: 1px solid #2c2c44;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #e8eaed;
+  pointer-events: auto;
+  user-select: none;
+}
+
+#trp-toolbar.trp-auto-hide {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#trp-toolbar.trp-auto-hide:hover,
+#trp-toolbar.trp-auto-hide:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#trp-toolbar.trp-reveal {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+#trp-toolbar .trp-tb-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-right: 1px solid #2c2c44;
+}
+#trp-toolbar .trp-tb-group:last-child { border-right: none; }
+
+#trp-toolbar .trp-tb-handle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 4px;
+  cursor: grab;
+  border-right: 1px solid #2c2c44;
+}
+#trp-toolbar .trp-tb-handle:active { cursor: grabbing; }
+
+#trp-toolbar .trp-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ea4335;
+  animation: trp-pulse 1.5s infinite;
+}
+
+#trp-toolbar .trp-tb-timer {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  color: #e8eaed;
+  min-width: 38px;
+}
+
+#trp-toolbar .trp-tb-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #16213e;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: #e8eaed;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+#trp-toolbar .trp-tb-btn:hover { background: #0f3460; }
+#trp-toolbar .trp-tb-btn.active { border-color: #4285f4; background: #0f3460; }
+#trp-toolbar .trp-tb-pause { color: #fbbc04; }
+#trp-toolbar .trp-tb-stop { color: #ea4335; }
+
+#trp-toolbar.trp-control-error {
+  border-color: #ea4335;
+  box-shadow: 0 6px 24px rgba(234, 67, 53, 0.35);
+}
+
+#trp-toolbar .trp-tb-color {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #2c2c44;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+#trp-toolbar .trp-tb-stroke {
+  width: 70px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #2c2c44;
+  outline: none;
+  cursor: pointer;
+}
+#trp-toolbar .trp-tb-stroke::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #4285f4;
+  cursor: pointer;
+}
+
+#trp-toolbar .trp-tb-strokeval {
+  min-width: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: #9aa0a6;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}

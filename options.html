@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Recorder - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Tab Recorder Settings</h1>
+    </header>
+
+    <form id="settingsForm">
+      <div class="card">
+        <h2>Export</h2>
+
+        <div class="field">
+          <label for="format">Default Export Format</label>
+          <select id="format" class="select">
+            <option value="webm">WebM (recommended)</option>
+            <option value="mp4">MP4</option>
+            <option value="gif">GIF (short clips only)</option>
+          </select>
+          <p class="hint" id="formatHint">WebM is the most reliable recording format. MP4 is available only when the browser supports native MP4 recording.</p>
+        </div>
+
+        <div class="field">
+          <label for="quality">Video Quality</label>
+          <select id="quality" class="select">
+            <option value="low">Low (480p)</option>
+            <option value="medium" selected>Medium (720p)</option>
+            <option value="high">High (1080p)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="codec">WebM Codec</label>
+          <select id="codec" class="select">
+            <option value="auto">Auto</option>
+            <option value="vp9">VP9</option>
+            <option value="vp8">VP8</option>
+          </select>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" id="captureTabAudio" checked>
+            <span>Capture tab audio</span>
+          </label>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" id="monitorTabAudio" checked>
+            <span>Play tab audio while recording</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="downloadFolder">Download Subfolder</label>
+          <input type="text" id="downloadFolder" class="input" placeholder="Tab Recordings">
+          <p class="hint">Files are saved inside your Downloads folder under this subfolder name. Leave empty for Downloads root.</p>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" id="askSaveAs">
+            <span>Ask where to save each file (Save As dialog)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Annotations</h2>
+
+        <div class="field">
+          <label for="defaultColor">Default Color</label>
+          <input type="color" id="defaultColor" class="color-input" value="#ff0000">
+        </div>
+
+        <div class="field">
+          <label for="defaultStrokeWidth">Default Stroke Width</label>
+          <div class="range-group">
+            <input type="range" id="defaultStrokeWidth" min="1" max="20" value="3" class="slider">
+            <span id="strokeWidthValue" class="range-value">3</span>
+          </div>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" id="hideToolbarInRecording" checked>
+            <span>Auto-hide annotation toolbar while recording</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <span id="saveStatus" class="save-status"></span>
+      </div>
+    </form>
+
+    <div class="card note">
+      <h2>About Save Locations</h2>
+      <p>Chrome extensions cannot choose arbitrary folders on your filesystem. Files are downloaded to your browser's default Downloads directory. You can optionally specify a subfolder name to organize recordings.</p>
+      <p>If you enable "Ask where to save", Chrome will show a Save As dialog for each recording.</p>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>
