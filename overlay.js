@@ -535,6 +535,7 @@ class RecorderOverlay {
     this.boundHandlers.keyDown = (e) => this.handleKeyDown(e);
 
     window.addEventListener('resize', this.boundHandlers.resize);
+    window.addEventListener('keydown', this.boundHandlers.keyDown, true);
     this.canvas.addEventListener('pointerdown', this.boundHandlers.pointerDown);
     this.canvas.addEventListener('pointermove', this.boundHandlers.pointerMove);
     this.canvas.addEventListener('pointerup', this.boundHandlers.pointerUp);
@@ -545,6 +546,7 @@ class RecorderOverlay {
 
   unbindEvents() {
     window.removeEventListener('resize', this.boundHandlers.resize);
+    window.removeEventListener('keydown', this.boundHandlers.keyDown, true);
     if (this.canvas) {
       this.canvas.removeEventListener('pointerdown', this.boundHandlers.pointerDown);
       this.canvas.removeEventListener('pointermove', this.boundHandlers.pointerMove);
@@ -627,20 +629,19 @@ class RecorderOverlay {
 
   handleKeyDown(e) {
     if (!this.active) return;
-    if (this.isEditableTarget(e.target)) return;
+    if (this.isEditableTarget(e.target) || this.isEditableTarget(document.activeElement)) return;
+    const key = e.key || e.code;
 
-    if (e.key === 'Escape') {
+    if (key === 'Escape') {
       this.clearActiveModes();
-      e.preventDefault();
-      e.stopPropagation();
+      this.consumeShortcutEvent(e);
       return;
     }
 
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (key === 'Delete' || key === 'Backspace') {
       const removed = this.undoLastAnnotation();
       if (removed) {
-        e.preventDefault();
-        e.stopPropagation();
+        this.consumeShortcutEvent(e);
       }
     }
   }
@@ -856,11 +857,18 @@ class RecorderOverlay {
     if (!target) return false;
     if (target.isContentEditable) return true;
     if (!target.closest) return false;
-    return !!target.closest('input, textarea, [contenteditable="true"]');
+    return !!target.closest('input, textarea, select, [contenteditable="true"]');
   }
 
   nextAnnotationId(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  consumeShortcutEvent(e) {
+    if (!e) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
   }
 
   updatePointerMode() {
