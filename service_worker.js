@@ -12,6 +12,7 @@ let state = {
   monitorTabAudio: true,
   hideToolbarInRecording: true,
   startedAt: null,
+  pausedAt: null,
   error: null,
 };
 
@@ -241,6 +242,7 @@ async function startRecording(msg) {
   state.monitorTabAudio = msg.monitorTabAudio !== false;
   state.hideToolbarInRecording = msg.hideToolbarInRecording !== false;
   state.startedAt = Date.now();
+  state.pausedAt = null;
   state.error = null;
   await persistState();
 
@@ -258,21 +260,29 @@ async function controlRecording(kind) {
   await hydrateState();
   if (!state.isRecording) return { success: false, error: 'Not recording' };
   if (kind === 'pause' && state.isPaused) {
-    return { success: true };
+    return { success: true, state: getStateSnapshot() };
   }
   if (kind === 'resume' && !state.isPaused) {
-    return { success: true };
+    return { success: true, state: getStateSnapshot() };
   }
   const resp = await sendToOffscreen({ action: kind });
   if (!resp || !resp.success) {
     return { success: false, error: (resp && resp.error) || `Failed to ${kind} recording` };
+  }
+  if (kind === 'pause') {
+    state.pausedAt = Date.now();
+  } else if (state.pausedAt && state.startedAt) {
+    state.startedAt += Date.now() - state.pausedAt;
+    state.pausedAt = null;
+  } else {
+    state.pausedAt = null;
   }
   state.isPaused = (kind === 'pause');
   state.error = null;
   await persistState();
   await notifyContent();
   broadcastPopup();
-  return { success: true };
+  return { success: true, state: getStateSnapshot() };
 }
 
 async function stopRecording() {
@@ -311,6 +321,7 @@ async function onRecordingComplete(msg) {
   state.isRecording = false;
   state.isPaused = false;
   state.startedAt = null;
+  state.pausedAt = null;
   state.error = null;
   if (finishedTabId != null) {
     await applyOverlayState(finishedTabId, getContentRecordingState({
@@ -372,6 +383,7 @@ async function onRecordingError(error) {
   state.isRecording = false;
   state.isPaused = false;
   state.startedAt = null;
+  state.pausedAt = null;
   if (failedTabId != null) {
     await applyOverlayState(failedTabId, getContentRecordingState({
       isRecording: false,

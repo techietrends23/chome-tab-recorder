@@ -16,6 +16,11 @@ A Manifest V3 Chrome extension for recording browser tabs with live annotation t
 3. Use the floating annotation toolbar for pen, highlighter, text, eraser, click highlight, pause/resume, and stop.
 4. Open Settings to configure export format, quality, WebM codec, audio capture, save behavior, and toolbar auto-hide.
 
+## Keyboard Shortcuts During Recording
+
+- `Esc`: turn off the active annotation mode (pen, highlighter, text, eraser, or click highlight).
+- `Delete` / `Backspace`: undo the most recent annotation change.
+
 ## Export Notes
 
 WebM is the most reliable local recording format because Chrome's `MediaRecorder` records WebM natively in most environments.

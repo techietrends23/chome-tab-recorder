@@ -168,7 +168,9 @@ async function pauseRecording() {
     showError(resp && resp.error ? resp.error : 'Could not pause recording.');
     return;
   }
-  state.isPaused = true; updateUI();
+  if (resp.state) Object.assign(state, resp.state);
+  else state.isPaused = true;
+  updateUI();
 }
 async function resumeRecording() {
   const resp = await chrome.runtime.sendMessage({ action: 'resume-recording' }).catch(() => null);
@@ -176,7 +178,9 @@ async function resumeRecording() {
     showError(resp && resp.error ? resp.error : 'Could not resume recording.');
     return;
   }
-  state.isPaused = false; updateUI();
+  if (resp.state) Object.assign(state, resp.state);
+  else state.isPaused = false;
+  updateUI();
 }
 
 async function showToolbar() {

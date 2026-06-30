@@ -29,6 +29,7 @@ class RecorderOverlay {
     this.paths = [];
     this.textElements = [];
     this.highlightedElements = [];
+    this.annotationHistory = [];
 
     this.boundHandlers = {};
   }
@@ -53,6 +54,7 @@ class RecorderOverlay {
     this.paths = [];
     this.textElements = [];
     this.highlightedElements = [];
+    this.annotationHistory = [];
   }
 
   startSession(isPaused, startedAt, options = {}) {
@@ -146,8 +148,8 @@ class RecorderOverlay {
     remove(this.container);
     remove(this.badge);
     remove(this.toolbar);
-    this.textElements.forEach(remove);
-    this.highlightedElements.forEach(remove);
+    this.textElements.forEach(({ el }) => remove(el));
+    this.highlightedElements.forEach(({ el }) => remove(el));
     this.container = this.canvas = this.ctx = this.highlightLayer = this.badge = this.toolbar = null;
     this.toolButtons = {};
     this.pauseBtn = null;
@@ -257,7 +259,7 @@ class RecorderOverlay {
     recGroup.className = 'trp-tb-group';
     this.pauseBtn = document.createElement('button');
     this.pauseBtn.className = 'trp-tb-btn trp-tb-pause';
-    this.pauseBtn.title = 'Pause / Resume';
+    this.pauseBtn.title = 'Pause recording';
     this.pauseBtn.textContent = '⏸';
     this.pauseBtn.addEventListener('click', (e) => this.onPauseToggle(e));
     const stopBtn = document.createElement('button');
@@ -342,15 +344,11 @@ class RecorderOverlay {
   onToolClick(tool) {
     const next = this.activeTool === tool ? null : tool;
     this.setTool(next);
-    Object.keys(this.toolButtons).forEach((k) => {
-      if (k === '__highlight') return;
-      this.toolButtons[k].classList.toggle('active', k === next);
-    });
+    this.updateToolButtonStates(next);
     if (next) {
       // selecting a drawing tool turns off click-highlight
       if (this.clickHighlightEnabled) {
         this.toggleClickHighlight(false);
-        this.toolButtons['__highlight'].classList.remove('active');
       }
     }
     try {
@@ -369,12 +367,19 @@ class RecorderOverlay {
   async onPauseToggle(e) {
     this.stopToolbarEvent(e);
     if (this.controlActionInFlight) return;
-    const nextPaused = !this.isPaused;
-    const action = nextPaused ? 'pause-recording' : 'resume-recording';
     this.setControlActionInFlight(true);
+    const currentState = await this.getRecorderState();
+    const isPaused = currentState && typeof currentState.isPaused === 'boolean'
+      ? currentState.isPaused
+      : this.isPaused;
+    const action = isPaused ? 'resume-recording' : 'pause-recording';
     const result = await this.sendControl(action);
     if (result && result.success) {
-      this.setRecordingState(nextPaused, this.startedAt);
+      const nextState = result.state || {};
+      this.setRecordingState(
+        typeof nextState.isPaused === 'boolean' ? nextState.isPaused : action === 'pause-recording',
+        nextState.startedAt || this.startedAt
+      );
     }
     this.setControlActionInFlight(false);
   }
@@ -432,6 +437,15 @@ class RecorderOverlay {
         finish({ success: false, error: e.message || String(e) });
       }
     });
+  }
+
+  async getRecorderState() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'get-state' });
+      return response && response.state ? response.state : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   sendControlViaBridge(action) {
@@ -569,12 +583,14 @@ class RecorderOverlay {
     this.isDrawing = true;
     this.canvas.setPointerCapture(e.pointerId);
     this.currentPath = {
+      id: this.nextAnnotationId('path'),
       tool: this.activeTool,
       color: this.color,
       width: this.activeTool === 'highlighter' ? this.strokeWidth * 3 : this.strokeWidth,
       points: [{ x, y }],
     };
     this.paths.push(this.currentPath);
+    this.annotationHistory.push({ type: 'path', id: this.currentPath.id });
     this.render();
   }
 
@@ -610,11 +626,22 @@ class RecorderOverlay {
   }
 
   handleKeyDown(e) {
-    if (e.key === 'Escape' && this.active) {
-      this.setTool(null);
-      Object.keys(this.toolButtons).forEach((k) => {
-        if (k !== '__highlight') this.toolButtons[k].classList.remove('active');
-      });
+    if (!this.active) return;
+    if (this.isEditableTarget(e.target)) return;
+
+    if (e.key === 'Escape') {
+      this.clearActiveModes();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      const removed = this.undoLastAnnotation();
+      if (removed) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     }
   }
 
@@ -678,14 +705,17 @@ class RecorderOverlay {
 
   addTextLabel(text, x, y) {
     const el = document.createElement('span');
+    const id = this.nextAnnotationId('text');
     el.className = 'trp-text-label';
+    el.dataset.annotationId = id;
     el.textContent = text;
     el.style.left = x + 'px';
     el.style.top = y + 'px';
     el.style.color = this.color;
     el.style.fontSize = this.textSize + 'px';
     this.container.appendChild(el);
-    this.textElements.push(el);
+    this.textElements.push({ id, el });
+    this.annotationHistory.push({ type: 'text', id });
   }
 
   eraseAt(x, y) {
@@ -697,11 +727,11 @@ class RecorderOverlay {
       return true;
     });
     this.textElements = this.textElements.filter((el) => {
-      const rect = el.getBoundingClientRect();
+      const rect = el.el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       if (Math.hypot(cx - x, cy - y) < threshold + 10) {
-        if (el.parentNode) el.parentNode.removeChild(el);
+        if (el.el.parentNode) el.el.parentNode.removeChild(el.el);
         return false;
       }
       return true;
@@ -714,7 +744,9 @@ class RecorderOverlay {
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return;
     const box = document.createElement('div');
+    const id = this.nextAnnotationId('highlight');
     box.className = 'trp-highlight';
+    box.dataset.annotationId = id;
     box.style.left = rect.left + 'px';
     box.style.top = rect.top + 'px';
     box.style.width = rect.width + 'px';
@@ -722,7 +754,8 @@ class RecorderOverlay {
     box.style.borderColor = this.color;
     box.style.background = this.hexToRGBA(this.color, 0.12);
     this.highlightLayer.appendChild(box);
-    this.highlightedElements.push(box);
+    this.highlightedElements.push({ id, el: box });
+    this.annotationHistory.push({ type: 'highlight', id });
   }
 
   hexToRGBA(hex, alpha) {
@@ -734,11 +767,43 @@ class RecorderOverlay {
 
   clearAll() {
     this.paths = [];
-    this.textElements.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
+    this.textElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
     this.textElements = [];
-    this.highlightedElements.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
+    this.highlightedElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
     this.highlightedElements = [];
+    this.annotationHistory = [];
     this.render();
+  }
+
+  undoLastAnnotation() {
+    while (this.annotationHistory.length) {
+      const entry = this.annotationHistory.pop();
+      if (entry.type === 'path') {
+        const nextPaths = this.paths.filter((path) => path.id !== entry.id);
+        if (nextPaths.length !== this.paths.length) {
+          this.paths = nextPaths;
+          this.render();
+          return true;
+        }
+      }
+      if (entry.type === 'text') {
+        const index = this.textElements.findIndex((item) => item.id === entry.id);
+        if (index !== -1) {
+          const [{ el }] = this.textElements.splice(index, 1);
+          if (el.parentNode) el.parentNode.removeChild(el);
+          return true;
+        }
+      }
+      if (entry.type === 'highlight') {
+        const index = this.highlightedElements.findIndex((item) => item.id === entry.id);
+        if (index !== -1) {
+          const [{ el }] = this.highlightedElements.splice(index, 1);
+          if (el.parentNode) el.parentNode.removeChild(el);
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ---------- setters ----------
@@ -766,11 +831,36 @@ class RecorderOverlay {
     this.clickHighlightEnabled = enabled;
     if (enabled) {
       this.setTool(null);
-      Object.keys(this.toolButtons).forEach((k) => {
-        if (k !== '__highlight') this.toolButtons[k].classList.remove('active');
-      });
+      this.updateToolButtonStates(null);
+    }
+    if (this.toolButtons.__highlight) {
+      this.toolButtons.__highlight.classList.toggle('active', enabled);
     }
     this.updatePointerMode();
+  }
+
+  clearActiveModes() {
+    this.setTool(null);
+    if (this.clickHighlightEnabled) this.toggleClickHighlight(false);
+    this.updateToolButtonStates(null);
+  }
+
+  updateToolButtonStates(activeTool) {
+    Object.keys(this.toolButtons).forEach((k) => {
+      if (k === '__highlight') return;
+      this.toolButtons[k].classList.toggle('active', k === activeTool);
+    });
+  }
+
+  isEditableTarget(target) {
+    if (!target) return false;
+    if (target.isContentEditable) return true;
+    if (!target.closest) return false;
+    return !!target.closest('input, textarea, [contenteditable="true"]');
+  }
+
+  nextAnnotationId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   updatePointerMode() {
