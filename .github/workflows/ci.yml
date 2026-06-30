@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for dangerous patterns
+        run: |
+          ! grep -rn '\beval\b\|new Function\|document\.write\|setTimeout\s*([^,]*["\x27]\|setInterval\s*([^,]*["\x27]' --include='*.js' . || echo "WARNING: dangerous patterns found"
+      - name: Check for innerHTML with variables
+        run: |
+          grep -rn 'innerHTML\s*=' --include='*.js' . | grep -v 'innerHTML\s*=\s*['"'"'"]' && echo "WARNING: innerHTML with variable" || echo "innerHTML check passed"
+      - name: Check for hardcoded secrets
+        run: |
+          ! grep -rn 'API_KEY\|api_key\|apiKey\|secret\|password\|token' --include='*.js' --include='*.json' --include='*.html' . | grep -v 'node_modules' | grep -v '"token"' | grep -v '// .*secret' || echo "WARNING: possible secrets found"
+      - name: Validate manifest.json
+        run: |
+          python3 -c "import json; json.load(open('manifest.json')); print('manifest.json is valid')"

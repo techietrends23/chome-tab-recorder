@@ -2,20 +2,29 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 1.1.x   | ✅ |
+| < 1.1   | ❌ |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+We take the security of Tab Recorder Pro seriously. If you discover a security vulnerability, please **do not** open a public issue.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Instead, report it privately via one of these methods:
+
+- **Email**: techietrends23@gmail.com
+- **GitHub Private Vulnerability Reporting**: Use the ["Report a vulnerability"](https://github.com/techietrends23/chome-tab-recorder/security/advisories/new) feature under the repository's Security tab.
+
+You can expect:
+
+- **Acknowledgment** of your report within 48 hours.
+- **An initial assessment** within 5 business days.
+- **Regular updates** on progress toward a fix.
+- **Credit** in release notes if you choose to be acknowledged.
+
+We ask that you allow us a reasonable window to address the issue before any public disclosure.
+
+## Scope
+
+This policy applies to the Tab Recorder Pro Chrome extension and its landing page. It does not apply to third-party websites or browsers.
