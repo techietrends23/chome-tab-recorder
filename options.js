@@ -4,6 +4,7 @@ const fields = [
   'format', 'quality', 'codec', 'captureTabAudio', 'monitorTabAudio',
   'downloadFolder', 'askSaveAs', 'defaultColor', 'defaultStrokeWidth',
   'hideToolbarInRecording', 'toolbarTheme',
+  'clickCircleEnabled', 'clickArrowEnabled',
 ];
 
 function normalizeFormat(format) {
@@ -51,6 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   $('hideToolbarInRecording').checked = saved.hideToolbarInRecording !== false;
   $('toolbarTheme').value = saved.toolbarTheme === 'light' ? 'light' : 'dark';
+  $('clickCircleEnabled').checked = saved.clickCircleEnabled !== false;
+  $('clickArrowEnabled').checked = saved.clickArrowEnabled !== false;
 
   $('defaultStrokeWidth').addEventListener('input', (e) => {
     $('strokeWidthValue').textContent = e.target.value;
@@ -71,6 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultStrokeWidth: parseInt($('defaultStrokeWidth').value),
       hideToolbarInRecording: $('hideToolbarInRecording').checked,
       toolbarTheme: $('toolbarTheme').value === 'light' ? 'light' : 'dark',
+      clickCircleEnabled: $('clickCircleEnabled').checked,
+      clickArrowEnabled: $('clickArrowEnabled').checked,
     };
 
     await chrome.storage.sync.set(data);

@@ -107,6 +107,40 @@
   50% { opacity: 0.3; }
 }
 
+/* ---------- Click effects: ripple + arrow ---------- */
+
+.trp-click-ripple {
+  position: fixed;
+  width: 50px;
+  height: 50px;
+  border: 3px solid;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2147483646;
+  animation: trp-ripple-effect 0.6s ease-out forwards;
+}
+
+@keyframes trp-ripple-effect {
+  0% { transform: scale(0); opacity: 0.8; }
+  100% { transform: scale(3); opacity: 0; }
+}
+
+.trp-click-arrow {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2147483646;
+  animation: trp-arrow-effect 0.9s ease-out forwards;
+  overflow: visible;
+}
+
+@keyframes trp-arrow-effect {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.6); }
+  18% { opacity: 1; transform: translateY(2px) scale(1.05); }
+  28% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px) scale(0.9); }
+}
+
 /* ---------- In-page floating toolbar ---------- */
 
 #trp-toolbar {

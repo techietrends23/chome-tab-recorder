@@ -6,6 +6,8 @@ class RecorderOverlay {
     this.strokeWidth = 3;
     this.textSize = 18;
     this.clickHighlightEnabled = false;
+    this.clickCircleEnabled = true;
+    this.clickArrowEnabled = true;
     this.isPaused = false;
     this.hideToolbarInRecording = true;
     this.theme = 'dark';
@@ -95,7 +97,7 @@ class RecorderOverlay {
   loadSettings() {
     try {
       chrome.storage.sync.get(
-        ['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth', 'toolbarTheme', 'clickHighlightEnabled'],
+        ['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth', 'toolbarTheme', 'clickHighlightEnabled', 'clickCircleEnabled', 'clickArrowEnabled'],
         (s) => {
           const color = s.color || s.defaultColor;
           const width = s.strokeWidth || s.defaultStrokeWidth;
@@ -111,6 +113,18 @@ class RecorderOverlay {
             this.toggleClickHighlight(s.clickHighlightEnabled);
             if (this.toolButtons.__highlight) {
               this.toolButtons.__highlight.classList.toggle('active', s.clickHighlightEnabled);
+            }
+          }
+          if (typeof s.clickCircleEnabled === 'boolean') {
+            this.clickCircleEnabled = s.clickCircleEnabled;
+            if (this.toolButtons.__circle) {
+              this.toolButtons.__circle.classList.toggle('active', s.clickCircleEnabled);
+            }
+          }
+          if (typeof s.clickArrowEnabled === 'boolean') {
+            this.clickArrowEnabled = s.clickArrowEnabled;
+            if (this.toolButtons.__arrow) {
+              this.toolButtons.__arrow.classList.toggle('active', s.clickArrowEnabled);
             }
           }
         }
@@ -243,6 +257,31 @@ class RecorderOverlay {
     });
     this.toolButtons['__highlight'] = hlBtn;
     actionGroup.appendChild(hlBtn);
+
+    const circleBtn = document.createElement('button');
+    circleBtn.className = 'trp-tb-btn active';
+    circleBtn.textContent = '◉';
+    circleBtn.title = 'Toggle click ripple effect';
+    circleBtn.addEventListener('click', () => {
+      this.clickCircleEnabled = !this.clickCircleEnabled;
+      circleBtn.classList.toggle('active', this.clickCircleEnabled);
+      try { chrome.storage.sync.set({ clickCircleEnabled: this.clickCircleEnabled }); } catch (err) {}
+    });
+    this.toolButtons['__circle'] = circleBtn;
+    actionGroup.appendChild(circleBtn);
+
+    const arrowBtn = document.createElement('button');
+    arrowBtn.className = 'trp-tb-btn active';
+    arrowBtn.textContent = '➜';
+    arrowBtn.title = 'Toggle click arrow effect';
+    arrowBtn.addEventListener('click', () => {
+      this.clickArrowEnabled = !this.clickArrowEnabled;
+      arrowBtn.classList.toggle('active', this.clickArrowEnabled);
+      try { chrome.storage.sync.set({ clickArrowEnabled: this.clickArrowEnabled }); } catch (err) {}
+    });
+    this.toolButtons['__arrow'] = arrowBtn;
+    actionGroup.appendChild(arrowBtn);
+
     bar.appendChild(actionGroup);
 
     const viewGroup = document.createElement('div');
@@ -624,7 +663,7 @@ class RecorderOverlay {
     e.stopPropagation();
     e.preventDefault();
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    this.highlightElement(e.target);
+    this.highlightElement(e.target, e.clientX, e.clientY);
   }
 
   handleKeyDown(e) {
@@ -740,7 +779,7 @@ class RecorderOverlay {
     this.render();
   }
 
-  highlightElement(el) {
+  highlightElement(el, clickX, clickY) {
     if (!el || !el.getBoundingClientRect) return;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return;
@@ -757,6 +796,43 @@ class RecorderOverlay {
     this.highlightLayer.appendChild(box);
     this.highlightedElements.push({ id, el: box });
     this.annotationHistory.push({ type: 'highlight', id });
+
+    if (clickX != null && clickY != null) {
+      this.showClickRipple(clickX, clickY);
+      this.showClickArrow(rect);
+    }
+  }
+
+  showClickRipple(x, y) {
+    if (!this.clickCircleEnabled) return;
+    const el = document.createElement('div');
+    el.className = 'trp-click-ripple';
+    el.style.left = (x - 25) + 'px';
+    el.style.top = (y - 25) + 'px';
+    el.style.borderColor = this.color;
+    this.highlightLayer.appendChild(el);
+    el.addEventListener('animationend', () => { if (el.parentNode) el.parentNode.removeChild(el); });
+  }
+
+  showClickArrow(rect) {
+    if (!this.clickArrowEnabled) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'trp-click-arrow');
+    svg.setAttribute('width', '28');
+    svg.setAttribute('height', '28');
+    svg.setAttribute('viewBox', '0 0 28 28');
+    svg.style.left = (rect.left + rect.width / 2 - 14) + 'px';
+    svg.style.top = (rect.top - 28) + 'px';
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M14 3 L14 23 M7 16 L14 23 L21 16');
+    path.setAttribute('stroke', this.color);
+    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    this.highlightLayer.appendChild(svg);
+    svg.addEventListener('animationend', () => { if (svg.parentNode) svg.parentNode.removeChild(svg); });
   }
 
   hexToRGBA(hex, alpha) {
@@ -848,7 +924,7 @@ class RecorderOverlay {
 
   updateToolButtonStates(activeTool) {
     Object.keys(this.toolButtons).forEach((k) => {
-      if (k === '__highlight') return;
+      if (k === '__highlight' || k === '__circle' || k === '__arrow') return;
       this.toolButtons[k].classList.toggle('active', k === activeTool);
     });
   }
