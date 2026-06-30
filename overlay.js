@@ -1,3 +1,4 @@
+(function(){ if (window.__TRP_OVERLAY) { window.__trpSyncOverlayFromBackground && window.__trpSyncOverlayFromBackground(); return; }
 class RecorderOverlay {
   constructor() {
     this.active = false;
@@ -976,3 +977,4 @@ class RecorderOverlay {
 }
 
 window.__TRP_OVERLAY = RecorderOverlay;
+})();
