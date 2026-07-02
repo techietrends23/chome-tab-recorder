@@ -11,11 +11,13 @@ class RecorderOverlay {
     this.clickArrowEnabled = true;
     this.isPaused = false;
     this.hideToolbarInRecording = true;
+    this.toolbarPinnedOpen = false;
     this.theme = 'dark';
     this.controlActionInFlight = false;
     this.controlButtons = [];
 
     this.container = null;
+    this.effectLayer = null;
     this.canvas = null;
     this.ctx = null;
     this.highlightLayer = null;
@@ -25,16 +27,21 @@ class RecorderOverlay {
     this.pauseBtn = null;
     this.stopBtn = null;
     this.themeBtn = null;
+    this.pinBtn = null;
 
     this.isDrawing = false;
     this.isErasing = false;
     this.currentPath = null;
     this.currentShape = null;
+    this.currentArea = null;
     this.paths = [];
     this.shapes = [];
     this.textElements = [];
     this.highlightedElements = [];
+    this.areaElements = [];
     this.annotationHistory = [];
+    this.annotationRevision = 0;
+    this.annotationPersistTimer = null;
 
     this.boundHandlers = {};
   }
@@ -60,7 +67,9 @@ class RecorderOverlay {
     this.shapes = [];
     this.textElements = [];
     this.highlightedElements = [];
+    this.areaElements = [];
     this.annotationHistory = [];
+    this.annotationRevision = 0;
   }
 
   startSession(isPaused, startedAt, options = {}) {
@@ -68,6 +77,9 @@ class RecorderOverlay {
     this.isPaused = !!isPaused;
     this.hideToolbarInRecording = options.hideToolbarInRecording !== false;
     this.startedAt = startedAt || Date.now();
+    if (options.annotationState) {
+      this.restoreAnnotationState(options.annotationState);
+    }
     this.showToolbar();
     this.updateToolbarVisibilityMode();
     this.showRecordingBadge(this.isPaused);
@@ -78,7 +90,7 @@ class RecorderOverlay {
   endSession() {
     if (!this.active) return;
     this.stopTimer();
-    this.clearAll();
+    this.clearAll({ persist: false });
     this.deactivate();
   }
 
@@ -101,7 +113,7 @@ class RecorderOverlay {
   loadSettings() {
     try {
       chrome.storage.sync.get(
-        ['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth', 'toolbarTheme', 'clickHighlightEnabled', 'clickCircleEnabled', 'clickArrowEnabled'],
+        ['color', 'strokeWidth', 'defaultColor', 'defaultStrokeWidth', 'toolbarTheme', 'clickHighlightEnabled', 'clickCircleEnabled', 'clickArrowEnabled', 'tool', 'toolbarPinnedOpen'],
         (s) => {
           const color = s.color || s.defaultColor;
           const width = s.strokeWidth || s.defaultStrokeWidth;
@@ -131,6 +143,15 @@ class RecorderOverlay {
               this.toolButtons.__arrow.classList.toggle('active', s.clickArrowEnabled);
             }
           }
+          if (typeof s.toolbarPinnedOpen === 'boolean') {
+            this.toolbarPinnedOpen = s.toolbarPinnedOpen;
+          }
+          if (typeof s.tool === 'string' && this.toolButtons[s.tool]) {
+            this.setTool(s.tool);
+            this.updateToolButtonStates(s.tool);
+          }
+          this.updatePinButton();
+          this.updateToolbarVisibilityMode();
         }
       );
     } catch (e) { /* storage unavailable */ }
@@ -151,10 +172,14 @@ class RecorderOverlay {
     this.highlightLayer = document.createElement('div');
     this.highlightLayer.id = 'trp-highlight-layer';
 
+    this.effectLayer = document.createElement('div');
+    this.effectLayer.id = 'trp-effect-layer';
+
     this.badge = document.createElement('div');
     this.badge.id = 'trp-recording-badge';
     this.badge.style.display = 'none';
 
+    this.container.appendChild(this.effectLayer);
     this.container.appendChild(this.canvas);
     this.container.appendChild(this.highlightLayer);
     document.documentElement.appendChild(this.container);
@@ -168,12 +193,18 @@ class RecorderOverlay {
     remove(this.toolbar);
     this.textElements.forEach(({ el }) => remove(el));
     this.highlightedElements.forEach(({ el }) => remove(el));
-    this.container = this.canvas = this.ctx = this.highlightLayer = this.badge = this.toolbar = null;
+    this.areaElements.forEach(({ el }) => remove(el));
+    this.container = this.effectLayer = this.canvas = this.ctx = this.highlightLayer = this.badge = this.toolbar = null;
     this.toolButtons = {};
     this.pauseBtn = null;
     this.stopBtn = null;
     this.themeBtn = null;
+    this.pinBtn = null;
     this.controlButtons = [];
+    if (this.annotationPersistTimer) {
+      clearTimeout(this.annotationPersistTimer);
+      this.annotationPersistTimer = null;
+    }
   }
 
   buildToolbar() {
@@ -192,6 +223,10 @@ class RecorderOverlay {
       { tool: 'highlighter', label: '🖍', title: 'Highlighter' },
       { tool: 'text', label: 'T', title: 'Text' },
       { tool: 'square', label: '□', title: 'Square' },
+      { tool: 'filled-rect', label: '■', title: 'Filled rectangle' },
+      { tool: 'arrow', label: '↗', title: 'Arrow callout' },
+      { tool: 'blur', label: '▒', title: 'Blur area' },
+      { tool: 'board', label: '▤', title: 'Whiteboard area' },
       { tool: 'eraser', label: '⌫', title: 'Eraser' },
     ];
     const toolGroup = document.createElement('div');
@@ -296,6 +331,10 @@ class RecorderOverlay {
     this.themeBtn.title = 'Toggle toolbar theme';
     this.themeBtn.addEventListener('click', () => this.toggleTheme());
     viewGroup.appendChild(this.themeBtn);
+    this.pinBtn = document.createElement('button');
+    this.pinBtn.className = 'trp-tb-btn';
+    this.pinBtn.addEventListener('click', () => this.toggleToolbarPin());
+    viewGroup.appendChild(this.pinBtn);
     bar.appendChild(viewGroup);
 
     // recording controls
@@ -321,6 +360,7 @@ class RecorderOverlay {
     bar.style.display = 'none';
     document.documentElement.appendChild(bar);
     this.applyTheme(this.theme);
+    this.updatePinButton();
 
     this.makeDraggable(bar);
   }
@@ -369,8 +409,9 @@ class RecorderOverlay {
 
   updateToolbarVisibilityMode() {
     if (!this.toolbar) return;
-    this.toolbar.classList.toggle('trp-auto-hide', this.hideToolbarInRecording);
-    this.toolbar.title = this.hideToolbarInRecording
+    const shouldAutoHide = this.hideToolbarInRecording && !this.toolbarPinnedOpen;
+    this.toolbar.classList.toggle('trp-auto-hide', shouldAutoHide);
+    this.toolbar.title = shouldAutoHide
       ? 'Hover here to show annotation controls'
       : '';
   }
@@ -541,8 +582,12 @@ class RecorderOverlay {
     if (Object.prototype.hasOwnProperty.call(options, 'toolbarTheme')) {
       this.applyTheme(options.toolbarTheme || 'dark');
     }
+    if (options.annotationState && this.isAnnotationCanvasEmpty()) {
+      this.restoreAnnotationState(options.annotationState);
+    }
     if (startedAt) this.startedAt = startedAt;
     this.updateToolbarVisibilityMode();
+    this.updatePinButton();
     this.showRecordingBadge(this.isPaused);
     this.updatePauseButton();
     if (this.isPaused) this.stopTimer(); else this.startTimer();
@@ -626,12 +671,12 @@ class RecorderOverlay {
       return;
     }
 
-    if (this.activeTool === 'square') {
+    if (['square', 'filled-rect', 'arrow'].includes(this.activeTool)) {
       this.isDrawing = true;
       this.canvas.setPointerCapture(e.pointerId);
       this.currentShape = {
         id: this.nextAnnotationId('shape'),
-        tool: this.activeTool,
+        kind: this.activeTool,
         color: this.color,
         width: this.strokeWidth,
         startX: x,
@@ -642,6 +687,22 @@ class RecorderOverlay {
       this.shapes.push(this.currentShape);
       this.annotationHistory.push({ type: 'shape', id: this.currentShape.id });
       this.render();
+      return;
+    }
+
+    if (['blur', 'board'].includes(this.activeTool)) {
+      this.isDrawing = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      this.currentArea = this.createAreaAnnotation({
+        id: this.nextAnnotationId('area'),
+        kind: this.activeTool,
+        startX: x,
+        startY: y,
+        endX: x,
+        endY: y,
+      });
+      this.areaElements.push(this.currentArea);
+      this.annotationHistory.push({ type: 'area', id: this.currentArea.id });
       return;
     }
 
@@ -665,11 +726,15 @@ class RecorderOverlay {
       this.eraseAt(x, y);
       return;
     }
-    if (!this.isDrawing || (!this.currentPath && !this.currentShape)) return;
+    if (!this.isDrawing || (!this.currentPath && !this.currentShape && !this.currentArea)) return;
     const { x, y } = this.getCanvasCoords(e);
     if (this.currentShape) {
       this.currentShape.endX = x;
       this.currentShape.endY = y;
+    } else if (this.currentArea) {
+      this.currentArea.endX = x;
+      this.currentArea.endY = y;
+      this.updateAreaElement(this.currentArea);
     } else {
       this.currentPath.points.push({ x, y });
     }
@@ -678,6 +743,7 @@ class RecorderOverlay {
 
   handlePointerUp(e) {
     if (this.isDrawing) {
+      let shouldPersist = false;
       if (this.currentShape) {
         const rect = this.normalizeRect(
           this.currentShape.startX,
@@ -685,17 +751,42 @@ class RecorderOverlay {
           this.currentShape.endX,
           this.currentShape.endY
         );
-        if (rect.width < 2 && rect.height < 2) {
+        const arrowLength = Math.hypot(
+          this.currentShape.endX - this.currentShape.startX,
+          this.currentShape.endY - this.currentShape.startY
+        );
+        if ((this.currentShape.kind === 'arrow' && arrowLength < 6) || (this.currentShape.kind !== 'arrow' && rect.width < 2 && rect.height < 2)) {
           this.shapes = this.shapes.filter((shape) => shape.id !== this.currentShape.id);
           if (this.annotationHistory.length && this.annotationHistory[this.annotationHistory.length - 1].id === this.currentShape.id) {
             this.annotationHistory.pop();
           }
           this.render();
+        } else {
+          shouldPersist = true;
         }
+      } else if (this.currentArea) {
+        const rect = this.normalizeRect(
+          this.currentArea.startX,
+          this.currentArea.startY,
+          this.currentArea.endX,
+          this.currentArea.endY
+        );
+        if (rect.width < 8 && rect.height < 8) {
+          this.removeAreaById(this.currentArea.id);
+          if (this.annotationHistory.length && this.annotationHistory[this.annotationHistory.length - 1].id === this.currentArea.id) {
+            this.annotationHistory.pop();
+          }
+        } else {
+          shouldPersist = true;
+        }
+      } else if (this.currentPath) {
+        shouldPersist = true;
       }
       this.isDrawing = false;
       this.currentPath = null;
       this.currentShape = null;
+      this.currentArea = null;
+      if (shouldPersist) this.scheduleAnnotationPersist();
     }
     this.isErasing = false;
     try { this.canvas.releasePointerCapture(e.pointerId); } catch (err) {}
@@ -761,6 +852,11 @@ class RecorderOverlay {
     }
 
     for (const shape of this.shapes) {
+      ctx.globalAlpha = 1;
+      if (shape.kind === 'arrow') {
+        this.renderArrow(ctx, shape);
+        continue;
+      }
       const rect = this.normalizeRect(shape.startX, shape.startY, shape.endX, shape.endY);
       if (rect.width < 1 && rect.height < 1) continue;
       ctx.beginPath();
@@ -768,7 +864,10 @@ class RecorderOverlay {
       ctx.lineWidth = shape.width;
       ctx.lineCap = 'square';
       ctx.lineJoin = 'miter';
-      ctx.globalAlpha = 1;
+      if (shape.kind === 'filled-rect') {
+        ctx.fillStyle = this.hexToRGBA(shape.color, 0.18);
+        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+      }
       ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
     }
     ctx.globalAlpha = 1;
@@ -789,7 +888,7 @@ class RecorderOverlay {
 
     const commit = () => {
       const text = input.value.trim();
-      if (text) this.addTextLabel(text, x, y);
+      if (text) this.addTextLabel(text, x, y, { color: this.color, fontSize: this.textSize });
       if (input.parentNode) input.parentNode.removeChild(input);
     };
     input.addEventListener('blur', commit);
@@ -800,23 +899,24 @@ class RecorderOverlay {
     });
   }
 
-  addTextLabel(text, x, y) {
-    const el = document.createElement('span');
+  addTextLabel(text, x, y, options = {}) {
     const id = this.nextAnnotationId('text');
-    el.className = 'trp-text-label';
-    el.dataset.annotationId = id;
-    el.textContent = text;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
-    el.style.color = this.color;
-    el.style.fontSize = this.textSize + 'px';
-    this.container.appendChild(el);
-    this.textElements.push({ id, el });
+    const item = this.createTextAnnotation({
+      id,
+      text,
+      x,
+      y,
+      color: options.color || this.color,
+      fontSize: options.fontSize || this.textSize,
+    });
+    this.textElements.push(item);
     this.annotationHistory.push({ type: 'text', id });
+    this.scheduleAnnotationPersist();
   }
 
   eraseAt(x, y) {
     const threshold = Math.max(12, this.strokeWidth * 2);
+    const before = this.getAnnotationCounts();
     this.paths = this.paths.filter((path) => {
       for (const pt of path.points) {
         if (Math.hypot(pt.x - x, pt.y - y) < threshold) return false;
@@ -834,26 +934,41 @@ class RecorderOverlay {
       }
       return true;
     });
+    this.highlightedElements = this.highlightedElements.filter((item) => {
+      if (this.isPointInRect(item, x, y, threshold)) {
+        if (item.el.parentNode) item.el.parentNode.removeChild(item.el);
+        return false;
+      }
+      return true;
+    });
+    this.areaElements = this.areaElements.filter((item) => {
+      if (this.isPointInRect(this.getAreaRect(item), x, y, threshold)) {
+        if (item.el.parentNode) item.el.parentNode.removeChild(item.el);
+        return false;
+      }
+      return true;
+    });
+    this.pruneAnnotationHistory();
     this.render();
+    if (this.didAnnotationCountsChange(before)) this.scheduleAnnotationPersist();
   }
 
   highlightElement(el, clickX, clickY) {
     if (!el || !el.getBoundingClientRect) return;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return;
-    const box = document.createElement('div');
-    const id = this.nextAnnotationId('highlight');
-    box.className = 'trp-highlight';
-    box.dataset.annotationId = id;
-    box.style.left = rect.left + 'px';
-    box.style.top = rect.top + 'px';
-    box.style.width = rect.width + 'px';
-    box.style.height = rect.height + 'px';
-    box.style.borderColor = this.color;
-    box.style.background = this.hexToRGBA(this.color, 0.12);
-    this.highlightLayer.appendChild(box);
-    this.highlightedElements.push({ id, el: box });
-    this.annotationHistory.push({ type: 'highlight', id });
+    const item = this.createHighlightAnnotation({
+      id: this.nextAnnotationId('highlight'),
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      color: this.color,
+      background: this.hexToRGBA(this.color, 0.12),
+    });
+    this.highlightedElements.push(item);
+    this.annotationHistory.push({ type: 'highlight', id: item.id });
+    this.scheduleAnnotationPersist();
 
     if (clickX != null && clickY != null) {
       this.showClickRipple(clickX, clickY);
@@ -900,15 +1015,21 @@ class RecorderOverlay {
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  clearAll() {
+  clearAll(options = {}) {
     this.paths = [];
     this.shapes = [];
+    this.currentPath = null;
+    this.currentShape = null;
+    this.currentArea = null;
     this.textElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
     this.textElements = [];
     this.highlightedElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
     this.highlightedElements = [];
+    this.areaElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
+    this.areaElements = [];
     this.annotationHistory = [];
     this.render();
+    if (options.persist !== false) this.scheduleAnnotationPersist();
   }
 
   undoLastAnnotation() {
@@ -919,6 +1040,7 @@ class RecorderOverlay {
         if (nextPaths.length !== this.paths.length) {
           this.paths = nextPaths;
           this.render();
+          this.scheduleAnnotationPersist();
           return true;
         }
       }
@@ -927,6 +1049,7 @@ class RecorderOverlay {
         if (nextShapes.length !== this.shapes.length) {
           this.shapes = nextShapes;
           this.render();
+          this.scheduleAnnotationPersist();
           return true;
         }
       }
@@ -935,6 +1058,14 @@ class RecorderOverlay {
         if (index !== -1) {
           const [{ el }] = this.textElements.splice(index, 1);
           if (el.parentNode) el.parentNode.removeChild(el);
+          this.scheduleAnnotationPersist();
+          return true;
+        }
+      }
+      if (entry.type === 'area') {
+        const removed = this.removeAreaById(entry.id);
+        if (removed) {
+          this.scheduleAnnotationPersist();
           return true;
         }
       }
@@ -943,11 +1074,191 @@ class RecorderOverlay {
         if (index !== -1) {
           const [{ el }] = this.highlightedElements.splice(index, 1);
           if (el.parentNode) el.parentNode.removeChild(el);
+          this.scheduleAnnotationPersist();
           return true;
         }
       }
     }
     return false;
+  }
+
+  createTextAnnotation(data) {
+    const el = document.createElement('span');
+    el.className = 'trp-text-label';
+    el.dataset.annotationId = data.id;
+    el.textContent = data.text;
+    el.style.left = data.x + 'px';
+    el.style.top = data.y + 'px';
+    el.style.color = data.color;
+    el.style.fontSize = data.fontSize + 'px';
+    this.container.appendChild(el);
+    return { ...data, el };
+  }
+
+  createHighlightAnnotation(data) {
+    const el = document.createElement('div');
+    el.className = 'trp-highlight';
+    el.dataset.annotationId = data.id;
+    el.style.left = data.x + 'px';
+    el.style.top = data.y + 'px';
+    el.style.width = data.width + 'px';
+    el.style.height = data.height + 'px';
+    el.style.borderColor = data.color;
+    el.style.background = data.background;
+    this.highlightLayer.appendChild(el);
+    return { ...data, el };
+  }
+
+  createAreaAnnotation(data) {
+    const el = document.createElement('div');
+    el.className = `trp-area-annotation trp-area-${data.kind}`;
+    el.dataset.annotationId = data.id;
+    this.effectLayer.appendChild(el);
+    const item = { ...data, el };
+    this.updateAreaElement(item);
+    return item;
+  }
+
+  updateAreaElement(item) {
+    if (!item || !item.el) return;
+    const rect = this.normalizeRect(item.startX, item.startY, item.endX, item.endY);
+    item.el.style.left = rect.x + 'px';
+    item.el.style.top = rect.y + 'px';
+    item.el.style.width = rect.width + 'px';
+    item.el.style.height = rect.height + 'px';
+  }
+
+  removeAreaById(id) {
+    const index = this.areaElements.findIndex((item) => item.id === id);
+    if (index === -1) return false;
+    const [{ el }] = this.areaElements.splice(index, 1);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    return true;
+  }
+
+  renderArrow(ctx, shape) {
+    const dx = shape.endX - shape.startX;
+    const dy = shape.endY - shape.startY;
+    const length = Math.hypot(dx, dy);
+    if (length < 1) return;
+    const angle = Math.atan2(dy, dx);
+    const headLength = Math.max(12, shape.width * 4);
+
+    ctx.beginPath();
+    ctx.strokeStyle = shape.color;
+    ctx.lineWidth = shape.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(shape.startX, shape.startY);
+    ctx.lineTo(shape.endX, shape.endY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(shape.endX, shape.endY);
+    ctx.lineTo(
+      shape.endX - headLength * Math.cos(angle - Math.PI / 6),
+      shape.endY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(shape.endX, shape.endY);
+    ctx.lineTo(
+      shape.endX - headLength * Math.cos(angle + Math.PI / 6),
+      shape.endY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
+  }
+
+  restoreAnnotationState(annotationState) {
+    this.clearAll({ persist: false });
+    this.paths = Array.isArray(annotationState.paths) ? annotationState.paths.map((path) => ({
+      ...path,
+      points: Array.isArray(path.points) ? path.points.map((point) => ({ x: point.x, y: point.y })) : [],
+    })) : [];
+    this.shapes = Array.isArray(annotationState.shapes) ? annotationState.shapes.map((shape) => ({ ...shape })) : [];
+    this.textElements = Array.isArray(annotationState.textElements)
+      ? annotationState.textElements.map((item) => this.createTextAnnotation({ ...item }))
+      : [];
+    this.highlightedElements = Array.isArray(annotationState.highlightedElements)
+      ? annotationState.highlightedElements.map((item) => this.createHighlightAnnotation({ ...item }))
+      : [];
+    this.areaElements = Array.isArray(annotationState.areaElements)
+      ? annotationState.areaElements.map((item) => this.createAreaAnnotation({ ...item }))
+      : [];
+    this.annotationHistory = Array.isArray(annotationState.annotationHistory)
+      ? annotationState.annotationHistory.map((entry) => ({ ...entry }))
+      : [];
+    this.annotationRevision = typeof annotationState.revision === 'number' ? annotationState.revision : 0;
+    this.pruneAnnotationHistory();
+    this.render();
+  }
+
+  serializeAnnotationState(nextRevision) {
+    return {
+      paths: this.paths.map((path) => ({
+        ...path,
+        points: path.points.map((point) => ({ x: point.x, y: point.y })),
+      })),
+      shapes: this.shapes.map((shape) => ({ ...shape })),
+      textElements: this.textElements.map(({ el, ...item }) => ({ ...item })),
+      highlightedElements: this.highlightedElements.map(({ el, ...item }) => ({ ...item })),
+      areaElements: this.areaElements.map(({ el, ...item }) => ({ ...item })),
+      annotationHistory: this.annotationHistory.map((entry) => ({ ...entry })),
+      revision: nextRevision,
+    };
+  }
+
+  scheduleAnnotationPersist() {
+    if (!this.active) return;
+    if (this.annotationPersistTimer) clearTimeout(this.annotationPersistTimer);
+    this.annotationPersistTimer = setTimeout(() => {
+      this.annotationPersistTimer = null;
+      this.persistAnnotationState();
+    }, 80);
+  }
+
+  persistAnnotationState() {
+    if (!this.active) return;
+    this.pruneAnnotationHistory();
+    const nextRevision = this.annotationRevision + 1;
+    this.annotationRevision = nextRevision;
+    const annotationState = this.serializeAnnotationState(nextRevision);
+    try {
+      chrome.runtime.sendMessage({ action: 'set-annotation-state', annotationState }).catch(() => {});
+    } catch (e) {}
+  }
+
+  getAnnotationCounts() {
+    return {
+      paths: this.paths.length,
+      shapes: this.shapes.length,
+      texts: this.textElements.length,
+      highlights: this.highlightedElements.length,
+      areas: this.areaElements.length,
+    };
+  }
+
+  didAnnotationCountsChange(before) {
+    const after = this.getAnnotationCounts();
+    return Object.keys(after).some((key) => after[key] !== before[key]);
+  }
+
+  isAnnotationCanvasEmpty() {
+    const counts = this.getAnnotationCounts();
+    return !Object.values(counts).some(Boolean);
+  }
+
+  pruneAnnotationHistory() {
+    const activeIds = new Set([
+      ...this.paths.map((item) => item.id),
+      ...this.shapes.map((item) => item.id),
+      ...this.textElements.map((item) => item.id),
+      ...this.highlightedElements.map((item) => item.id),
+      ...this.areaElements.map((item) => item.id),
+    ]);
+    this.annotationHistory = this.annotationHistory.filter((entry) => activeIds.has(entry.id));
+  }
+
+  getAreaRect(item) {
+    return this.normalizeRect(item.startX, item.startY, item.endX, item.endY);
   }
 
   // ---------- setters ----------
@@ -969,6 +1280,22 @@ class RecorderOverlay {
     const nextTheme = this.theme === 'light' ? 'dark' : 'light';
     this.applyTheme(nextTheme);
     try { chrome.storage.sync.set({ toolbarTheme: nextTheme }); } catch (e) {}
+  }
+
+  toggleToolbarPin() {
+    this.toolbarPinnedOpen = !this.toolbarPinnedOpen;
+    this.updatePinButton();
+    this.updateToolbarVisibilityMode();
+    try { chrome.storage.sync.set({ toolbarPinnedOpen: this.toolbarPinnedOpen }); } catch (e) {}
+  }
+
+  updatePinButton() {
+    if (!this.pinBtn) return;
+    this.pinBtn.textContent = this.toolbarPinnedOpen ? 'P' : 'A';
+    this.pinBtn.title = this.toolbarPinnedOpen
+      ? 'Allow toolbar to collapse again'
+      : 'Keep toolbar expanded';
+    this.pinBtn.classList.toggle('active', this.toolbarPinnedOpen || !this.hideToolbarInRecording);
   }
 
   toggleClickHighlight(enabled) {
@@ -1019,8 +1346,23 @@ class RecorderOverlay {
   }
 
   isPointNearShape(shape, x, y, threshold) {
+    if (shape.kind === 'arrow') {
+      const shaftDistance = this.distanceToSegment(x, y, shape.startX, shape.startY, shape.endX, shape.endY);
+      const angle = Math.atan2(shape.endY - shape.startY, shape.endX - shape.startX);
+      const headLength = Math.max(12, shape.width * 4);
+      const leftX = shape.endX - headLength * Math.cos(angle - Math.PI / 6);
+      const leftY = shape.endY - headLength * Math.sin(angle - Math.PI / 6);
+      const rightX = shape.endX - headLength * Math.cos(angle + Math.PI / 6);
+      const rightY = shape.endY - headLength * Math.sin(angle + Math.PI / 6);
+      return shaftDistance <= threshold
+        || this.distanceToSegment(x, y, shape.endX, shape.endY, leftX, leftY) <= threshold
+        || this.distanceToSegment(x, y, shape.endX, shape.endY, rightX, rightY) <= threshold;
+    }
     const rect = this.normalizeRect(shape.startX, shape.startY, shape.endX, shape.endY);
     if (rect.width < 1 && rect.height < 1) return Math.hypot(rect.x - x, rect.y - y) < threshold;
+    if (shape.kind === 'filled-rect') {
+      return this.isPointInRect(rect, x, y, threshold);
+    }
     const left = rect.x - threshold;
     const right = rect.x + rect.width + threshold;
     const top = rect.y - threshold;
@@ -1031,6 +1373,24 @@ class RecorderOverlay {
     const onHorizontalEdge = (Math.abs(y - rect.y) <= threshold || Math.abs(y - (rect.y + rect.height)) <= threshold)
       && x >= left && x <= right;
     return onVerticalEdge || onHorizontalEdge;
+  }
+
+  isPointInRect(rect, x, y, threshold = 0) {
+    if (!rect) return false;
+    return x >= rect.x - threshold
+      && x <= rect.x + rect.width + threshold
+      && y >= rect.y - threshold
+      && y <= rect.y + rect.height + threshold;
+  }
+
+  distanceToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+    const cx = x1 + t * dx;
+    const cy = y1 + t * dy;
+    return Math.hypot(px - cx, py - cy);
   }
 
   consumeShortcutEvent(e) {

@@ -13,6 +13,7 @@ let state = {
   hideToolbarInRecording: true,
   startedAt: null,
   pausedAt: null,
+  annotationState: null,
   error: null,
 };
 
@@ -112,7 +113,7 @@ async function ensureContentScript(tabId) {
   return cssInjected || scriptInjected;
 }
 
-function getContentRecordingState(overrides = {}) {
+function getContentRecordingState(overrides = {}, includeAnnotations = false) {
   return {
     target: 'content',
     action: 'recording-state',
@@ -120,6 +121,7 @@ function getContentRecordingState(overrides = {}) {
     isPaused: state.isPaused,
     startedAt: state.startedAt,
     hideToolbarInRecording: state.hideToolbarInRecording,
+    annotationState: includeAnnotations ? (state.annotationState || null) : undefined,
     ...overrides,
   };
 }
@@ -147,7 +149,7 @@ async function applyOverlayState(tabId, recordingState) {
 
 async function notifyContent(overrides = {}) {
   if (!state.tabId) return false;
-  const recordingState = getContentRecordingState(overrides);
+  const recordingState = getContentRecordingState(overrides, false);
 
   const applied = await applyOverlayState(state.tabId, recordingState);
   chrome.tabs.sendMessage(state.tabId, recordingState).catch(() => {});
@@ -155,7 +157,7 @@ async function notifyContent(overrides = {}) {
 }
 
 async function showOverlayWithRetries(tabId) {
-  const recordingState = getContentRecordingState();
+  const recordingState = getContentRecordingState({}, true);
   for (let i = 0; i < 5; i++) {
     if (await applyOverlayState(tabId, recordingState)) return true;
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -243,6 +245,15 @@ async function startRecording(msg) {
   state.hideToolbarInRecording = msg.hideToolbarInRecording !== false;
   state.startedAt = Date.now();
   state.pausedAt = null;
+  state.annotationState = {
+    paths: [],
+    shapes: [],
+    textElements: [],
+    highlightedElements: [],
+    areaElements: [],
+    annotationHistory: [],
+    revision: 0,
+  };
   state.error = null;
   await persistState();
 
@@ -315,6 +326,26 @@ async function handleToolbarControl(msg, sender) {
   }
 }
 
+async function setAnnotationState(msg, sender) {
+  await hydrateState();
+  if (!state.isRecording) return { success: false, error: 'Not recording' };
+  if (sender && sender.tab && state.tabId && sender.tab.id !== state.tabId) {
+    return { success: false, error: 'Annotation state does not belong to the active recording tab' };
+  }
+
+  state.annotationState = msg.annotationState || {
+    paths: [],
+    shapes: [],
+    textElements: [],
+    highlightedElements: [],
+    areaElements: [],
+    annotationHistory: [],
+    revision: 0,
+  };
+  await persistState();
+  return { success: true };
+}
+
 async function onRecordingComplete(msg) {
   await hydrateState();
   const finishedTabId = state.tabId;
@@ -322,6 +353,7 @@ async function onRecordingComplete(msg) {
   state.isPaused = false;
   state.startedAt = null;
   state.pausedAt = null;
+  state.annotationState = null;
   state.error = null;
   if (finishedTabId != null) {
     await applyOverlayState(finishedTabId, getContentRecordingState({
@@ -384,6 +416,7 @@ async function onRecordingError(error) {
   state.isPaused = false;
   state.startedAt = null;
   state.pausedAt = null;
+  state.annotationState = null;
   if (failedTabId != null) {
     await applyOverlayState(failedTabId, getContentRecordingState({
       isRecording: false,
@@ -438,6 +471,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'pause-recording':  r = await controlRecording('pause'); break;
         case 'resume-recording': r = await controlRecording('resume'); break;
         case 'toolbar-control':  r = await handleToolbarControl(msg, sender); break;
+        case 'set-annotation-state': r = await setAnnotationState(msg, sender); break;
         case 'show-toolbar':     r = await showToolbarForRecording(); break;
         case 'get-state':        r = { state: { ...state } }; break;
 

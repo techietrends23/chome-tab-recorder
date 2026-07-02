@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 const fields = [
   'format', 'quality', 'codec', 'captureTabAudio', 'monitorTabAudio',
   'downloadFolder', 'askSaveAs', 'defaultColor', 'defaultStrokeWidth',
-  'hideToolbarInRecording', 'toolbarTheme',
+  'hideToolbarInRecording', 'toolbarPinnedOpen', 'toolbarTheme',
   'clickCircleEnabled', 'clickArrowEnabled',
 ];
 
@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('strokeWidthValue').textContent = saved.defaultStrokeWidth;
   }
   $('hideToolbarInRecording').checked = saved.hideToolbarInRecording !== false;
+  $('toolbarPinnedOpen').checked = saved.toolbarPinnedOpen === true;
   $('toolbarTheme').value = saved.toolbarTheme === 'light' ? 'light' : 'dark';
   $('clickCircleEnabled').checked = saved.clickCircleEnabled !== false;
   $('clickArrowEnabled').checked = saved.clickArrowEnabled !== false;
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultColor: $('defaultColor').value,
       defaultStrokeWidth: parseInt($('defaultStrokeWidth').value),
       hideToolbarInRecording: $('hideToolbarInRecording').checked,
+      toolbarPinnedOpen: $('toolbarPinnedOpen').checked,
       toolbarTheme: $('toolbarTheme').value === 'light' ? 'light' : 'dark',
       clickCircleEnabled: $('clickCircleEnabled').checked,
       clickArrowEnabled: $('clickArrowEnabled').checked,

@@ -31,6 +31,7 @@
   cursor: grab;
 }
 
+#trp-effect-layer,
 #trp-highlight-layer {
   position: absolute;
   top: 0;
@@ -38,6 +39,46 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+#trp-effect-layer {
+  z-index: 0;
+}
+
+#trp-canvas {
+  z-index: 1;
+}
+
+#trp-highlight-layer {
+  z-index: 2;
+}
+
+.trp-area-annotation {
+  position: fixed;
+  pointer-events: none;
+  box-sizing: border-box;
+  border-radius: 14px;
+  z-index: 2147483645;
+}
+
+.trp-area-blur {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(250, 250, 255, 0.12);
+  backdrop-filter: blur(16px) saturate(0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(0.8);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.trp-area-board {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
 }
 
 .trp-highlight {
