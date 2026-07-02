@@ -29,7 +29,9 @@ class RecorderOverlay {
     this.isDrawing = false;
     this.isErasing = false;
     this.currentPath = null;
+    this.currentShape = null;
     this.paths = [];
+    this.shapes = [];
     this.textElements = [];
     this.highlightedElements = [];
     this.annotationHistory = [];
@@ -55,6 +57,7 @@ class RecorderOverlay {
     this.active = false;
     this.activeTool = null;
     this.paths = [];
+    this.shapes = [];
     this.textElements = [];
     this.highlightedElements = [];
     this.annotationHistory = [];
@@ -188,6 +191,7 @@ class RecorderOverlay {
       { tool: 'pen', label: '✎', title: 'Pen' },
       { tool: 'highlighter', label: '🖍', title: 'Highlighter' },
       { tool: 'text', label: 'T', title: 'Text' },
+      { tool: 'square', label: '□', title: 'Square' },
       { tool: 'eraser', label: '⌫', title: 'Eraser' },
     ];
     const toolGroup = document.createElement('div');
@@ -622,6 +626,25 @@ class RecorderOverlay {
       return;
     }
 
+    if (this.activeTool === 'square') {
+      this.isDrawing = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      this.currentShape = {
+        id: this.nextAnnotationId('shape'),
+        tool: this.activeTool,
+        color: this.color,
+        width: this.strokeWidth,
+        startX: x,
+        startY: y,
+        endX: x,
+        endY: y,
+      };
+      this.shapes.push(this.currentShape);
+      this.annotationHistory.push({ type: 'shape', id: this.currentShape.id });
+      this.render();
+      return;
+    }
+
     this.isDrawing = true;
     this.canvas.setPointerCapture(e.pointerId);
     this.currentPath = {
@@ -642,16 +665,37 @@ class RecorderOverlay {
       this.eraseAt(x, y);
       return;
     }
-    if (!this.isDrawing || !this.currentPath) return;
+    if (!this.isDrawing || (!this.currentPath && !this.currentShape)) return;
     const { x, y } = this.getCanvasCoords(e);
-    this.currentPath.points.push({ x, y });
+    if (this.currentShape) {
+      this.currentShape.endX = x;
+      this.currentShape.endY = y;
+    } else {
+      this.currentPath.points.push({ x, y });
+    }
     this.render();
   }
 
   handlePointerUp(e) {
     if (this.isDrawing) {
+      if (this.currentShape) {
+        const rect = this.normalizeRect(
+          this.currentShape.startX,
+          this.currentShape.startY,
+          this.currentShape.endX,
+          this.currentShape.endY
+        );
+        if (rect.width < 2 && rect.height < 2) {
+          this.shapes = this.shapes.filter((shape) => shape.id !== this.currentShape.id);
+          if (this.annotationHistory.length && this.annotationHistory[this.annotationHistory.length - 1].id === this.currentShape.id) {
+            this.annotationHistory.pop();
+          }
+          this.render();
+        }
+      }
       this.isDrawing = false;
       this.currentPath = null;
+      this.currentShape = null;
     }
     this.isErasing = false;
     try { this.canvas.releasePointerCapture(e.pointerId); } catch (err) {}
@@ -715,6 +759,18 @@ class RecorderOverlay {
         ctx.stroke();
       }
     }
+
+    for (const shape of this.shapes) {
+      const rect = this.normalizeRect(shape.startX, shape.startY, shape.endX, shape.endY);
+      if (rect.width < 1 && rect.height < 1) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = shape.width;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.globalAlpha = 1;
+      ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -767,6 +823,7 @@ class RecorderOverlay {
       }
       return true;
     });
+    this.shapes = this.shapes.filter((shape) => !this.isPointNearShape(shape, x, y, threshold));
     this.textElements = this.textElements.filter((el) => {
       const rect = el.el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
@@ -845,6 +902,7 @@ class RecorderOverlay {
 
   clearAll() {
     this.paths = [];
+    this.shapes = [];
     this.textElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
     this.textElements = [];
     this.highlightedElements.forEach(({ el }) => { if (el.parentNode) el.parentNode.removeChild(el); });
@@ -860,6 +918,14 @@ class RecorderOverlay {
         const nextPaths = this.paths.filter((path) => path.id !== entry.id);
         if (nextPaths.length !== this.paths.length) {
           this.paths = nextPaths;
+          this.render();
+          return true;
+        }
+      }
+      if (entry.type === 'shape') {
+        const nextShapes = this.shapes.filter((shape) => shape.id !== entry.id);
+        if (nextShapes.length !== this.shapes.length) {
+          this.shapes = nextShapes;
           this.render();
           return true;
         }
@@ -939,6 +1005,32 @@ class RecorderOverlay {
 
   nextAnnotationId(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  normalizeRect(startX, startY, endX, endY) {
+    const x = Math.min(startX, endX);
+    const y = Math.min(startY, endY);
+    return {
+      x,
+      y,
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY),
+    };
+  }
+
+  isPointNearShape(shape, x, y, threshold) {
+    const rect = this.normalizeRect(shape.startX, shape.startY, shape.endX, shape.endY);
+    if (rect.width < 1 && rect.height < 1) return Math.hypot(rect.x - x, rect.y - y) < threshold;
+    const left = rect.x - threshold;
+    const right = rect.x + rect.width + threshold;
+    const top = rect.y - threshold;
+    const bottom = rect.y + rect.height + threshold;
+    if (x < left || x > right || y < top || y > bottom) return false;
+    const onVerticalEdge = (Math.abs(x - rect.x) <= threshold || Math.abs(x - (rect.x + rect.width)) <= threshold)
+      && y >= top && y <= bottom;
+    const onHorizontalEdge = (Math.abs(y - rect.y) <= threshold || Math.abs(y - (rect.y + rect.height)) <= threshold)
+      && x >= left && x <= right;
+    return onVerticalEdge || onHorizontalEdge;
   }
 
   consumeShortcutEvent(e) {
