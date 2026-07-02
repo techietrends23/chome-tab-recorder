@@ -332,7 +332,7 @@ class RecorderOverlay {
     this.themeBtn.addEventListener('click', () => this.toggleTheme());
     viewGroup.appendChild(this.themeBtn);
     this.pinBtn = document.createElement('button');
-    this.pinBtn.className = 'trp-tb-btn';
+    this.pinBtn.className = 'trp-tb-btn trp-tb-btn-label';
     this.pinBtn.addEventListener('click', () => this.toggleToolbarPin());
     viewGroup.appendChild(this.pinBtn);
     bar.appendChild(viewGroup);
@@ -1291,7 +1291,7 @@ class RecorderOverlay {
 
   updatePinButton() {
     if (!this.pinBtn) return;
-    this.pinBtn.textContent = this.toolbarPinnedOpen ? 'P' : 'A';
+    this.pinBtn.textContent = this.toolbarPinnedOpen ? 'Pin' : 'Auto';
     this.pinBtn.title = this.toolbarPinnedOpen
       ? 'Allow toolbar to collapse again'
       : 'Keep toolbar expanded';

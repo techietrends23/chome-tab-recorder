@@ -339,6 +339,14 @@
   transition: border-color 0.15s, background 0.15s, opacity 0.15s ease;
 }
 
+#trp-toolbar .trp-tb-btn-label {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 #trp-toolbar input,
 #trp-toolbar button {
   cursor: pointer;
